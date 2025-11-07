@@ -222,6 +222,8 @@ found:
 
   p->nice = 2;
   p->priority = 2;
+  p->q_prev = 0;
+  p->q_next = 0;
 
   return p;
 }
