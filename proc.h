@@ -2,6 +2,7 @@
 #define PRIORITY_MAX 4
 #define NICE_MIN 0
 #define NICE_MAX 4
+#define PRIORITY_LEVELS 5
 
 // x, low, high
 static inline int clamp_integer(int x, int l, int h) {
@@ -28,6 +29,8 @@ struct cpu {
   int ncli;                    // Depth of pushcli nesting.
   int intena;                  // Were interrupts enabled before pushcli?
   struct proc *proc;           // The process running on this cpu or null
+  struct proc *q_prev;         // The preceding process in the run queue
+  struct proc *q_next;         // The next process in the run queue (DLL)
 };
 
 extern struct cpu cpus[NCPU];
@@ -78,3 +81,32 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+// we're creating a doubly-linked queue (LL implementation) of the processes
+// with 'buckets' at each priority level
+
+struct run_queue {
+  struct proc *head
+  struct proc *tail
+  int length;
+}
+
+// The ready_queues structure is an array of run queues where index i corresponds
+// to priority level i
+
+/*
+  [
+    i=0: [*]<->[*]
+    i=1: [*]<->[*]<->[*]<->[*]<->[*]
+    i=2: [*]<->[*]<->[*]<->[*]<->[*]<->[*]<->[*]
+    i=3: [*]<->[*]<->[*]
+    i=4: [*]<->[*]<->[*]<->[*]<->[*]<->[*]
+  ]
+
+  something like this^, but the 'pX:' does not symbolize a k/v pair
+
+*/
+
+static struct run_queue ready_queues[PRIORITY_LEVELS];
+
+
