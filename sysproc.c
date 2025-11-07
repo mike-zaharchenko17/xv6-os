@@ -6,6 +6,8 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "spinlock.h"
+
 
 // tell compiler ptable exists in another file
 extern struct {
@@ -128,9 +130,9 @@ int sys_nice(void) {
   // copy over the old nice value
   int old = p->nice;
 
-  p->nice => clamp_integer(val, NICE_MIN, NICE_MAX);
+  p->nice = clamp_integer(val, NICE_MIN, NICE_MAX);
 
-  p->priority => priority_from_nice(p->nice);
+  p->priority = priority_from_nice(p->nice);
 
   release(&ptable.lock);
 
