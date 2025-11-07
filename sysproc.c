@@ -127,7 +127,6 @@ int sys_nice(void) {
     return -1;
   }
 
-  // copy over the old nice value
   int old = p->nice;
 
   p->nice = clamp_integer(val, NICE_MIN, NICE_MAX);

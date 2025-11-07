@@ -13,12 +13,12 @@ int main(int argc, char *argv[]) {
         value = atoi(argv[2]);
         old_nice = nice(pid, value);
 
-        if (old nice < 0) {
+        if (old_nice < 0) {
             printf(2, "nice: failed- negative input\n");
             exit();
         }
 
-        pprintf(1, "%d %d\n", pid, old_nice);
+        printf(1, "%d %d\n", pid, old_nice);
         exit();
     }
 
@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
         value = atoi(argv[1]);
         old_nice = nice(pid, value);
 
-        if (old nice < 0) {
+        if (old_nice < 0) {
             printf(2, "nice: failed- negative input; exiting\n");
             exit();
         }
