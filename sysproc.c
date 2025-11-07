@@ -98,8 +98,12 @@ sys_uptime(void)
   return xticks;
 }
 
-// find process; use only with lock acquired
+// find process; use only with lock acquired; will throw otherwise
 static struct proc* find_proc_locked(int pid) {
+  // throw if the current CPU does not hold the lock
+  if (!holding(&ptable.lock)) {
+    panic("find_proc_locked; ptable.lock not held");
+  }
   struct proc *p;
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->pid == pid) {
