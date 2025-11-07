@@ -98,10 +98,41 @@ sys_uptime(void)
 
 // find process; use only with lock acquired
 static struct proc* find_proc_locked(int pid) {
-  for (struct proc *p; p < &ptable.proc[NPROC]; p++) {
+  struct proc *p;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->pid == pid) {
       return p;
     }
   }
   return 0;
-} 
+}
+
+int sys_nice(void) {
+  int pid, val;
+
+  if (argint(0, &pid) < 0 || argint(1, &val) < 0) {
+    return -1;
+  }
+
+  acquire(&ptable.lock);
+
+  // find the process; safe bc lock acquired
+  struct proc *p = find_proc_locked(pid);
+
+  // if not found, release lock, return err
+  if (!p) {
+    release(&ptable.lock);
+    return -1;
+  }
+
+  // copy over the old nice value
+  int old = p->nice;
+
+  p->nice => clamp_integer(val, NICE_MIN, NICE_MAX);
+
+  p->priority => priority_from_nice(p->nice);
+
+  release(&ptable.lock);
+
+  return old;
+}
