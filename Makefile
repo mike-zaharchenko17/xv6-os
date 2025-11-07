@@ -231,6 +231,10 @@ qemu-memfs: xv6memfs.img
 qemu-nox: fs.img xv6.img
 	$(QEMU) -nographic $(QEMUOPTS)
 
+# Add a target to enable the priority scheduler
+qemu-prio: clean
+	$(MAKE) CFLAGS+='-DPRIORITY_SCHED' qemu-nox
+
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
