@@ -2,8 +2,6 @@
 #include "stat.h"
 #include "user.h"
 
-static int string_to_int(const char)
-
 int main(int argc, char *argv[]) {
     int pid;
     int value;
