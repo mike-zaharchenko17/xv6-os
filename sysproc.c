@@ -7,6 +7,12 @@
 #include "mmu.h"
 #include "proc.h"
 
+// tell compiler ptable exists in another file
+extern struct {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+} ptable;
+
 int
 sys_fork(void)
 {
@@ -89,3 +95,13 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// find process; use only with lock acquired
+static struct proc* find_proc_locked(int pid) {
+  for (struct proc *p; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid == pid) {
+      return p;
+    }
+  }
+  return 0;
+} 
