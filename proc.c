@@ -55,7 +55,7 @@ mycpu(void)
 // Disable interrupts so that we are not rescheduled
 // while reading proc from the cpu structure
 struct proc*
-myproc(void) {
+myproc(void) { 
   struct cpu *c;
   struct proc *p;
   pushcli();
@@ -111,6 +111,9 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+
+  p->nice = 2;
+  p->priority = 2;
 
   return p;
 }

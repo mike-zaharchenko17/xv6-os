@@ -4,7 +4,7 @@
 #define NICE_MAX 4
 
 // x, low, high
-static inline clamp_integer(int x, int l, int h) {
+static inline int clamp_integer(int x, int l, int h) {
   if (x < l) {
     return l;
   }
@@ -14,7 +14,7 @@ static inline clamp_integer(int x, int l, int h) {
   return x;
 }
 
-static inline priority_from_nice(int nice_val) {
+static inline int priority_from_nice(int nice_val) {
   return clamp_integer(nice_val, NICE_MIN, NICE_MAX);
 }
 
