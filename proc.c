@@ -515,7 +515,16 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
+
+  struct proc *p = myproc();
+
+  #ifdef PRIORITY_SCHED
+    p->state = RUNNABLE;
+    rq_push_tail_locked(p->priority, p);
+  #else
+    p->state = RUNNABLE;
+  #endif
+
   sched();
   release(&ptable.lock);
 }
@@ -566,6 +575,18 @@ sleep(void *chan, struct spinlock *lk)
   }
   // Go to sleep.
   p->chan = chan;
+
+  #ifdef PRIORITY_SCHED
+    if (!holding(&ptable.lock)) {
+      panic("sleep: ptable.lock not held");
+    }
+
+    // protect invariants
+    if (p->q_prev || p->q_next || ready_queues[p->priority].head == p) {
+      rq_remove_locked(p);
+    }
+  #endif
+
   p->state = SLEEPING;
 
   sched();
@@ -589,8 +610,12 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if (p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+      #ifdef PRIORITY_SCHED
+      rq_push_tail_locked(p->priority, p);
+      #endif
+    }
 }
 
 // Wake up all processes sleeping on chan.
