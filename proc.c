@@ -406,7 +406,7 @@ exit(void)
   */
 
   #ifdef PRIORITY_SCHED
-  if (curproc->q_prev ||  curprov->q_next || ready_queues[curproc->priority].head == curproc) {
+  if (curproc->q_prev ||  curproc->q_next || ready_queues[curproc->priority].head == curproc) {
     rq_remove_locked(curproc);
   }
   #endif
@@ -549,7 +549,7 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    
+
     release(&ptable.lock);
   }
 
