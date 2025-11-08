@@ -1,3 +1,21 @@
+#define NICE_MIN 0
+#define NICE_MAX 4
+
+// x, low, high
+static inline int clamp_integer(int x, int l, int h) {
+  if (x < l) {
+    return l;
+  }
+  if (x > h) {
+    return h;
+  }
+  return x;
+}
+
+static inline int priority_from_nice(int nice_val) {
+  return clamp_integer(nice_val, NICE_MIN, NICE_MAX);
+}
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -45,10 +63,15 @@ struct proc {
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
+  int nice;                    // 0-4 nice value
+  int priority;                // 0-4 scheduler priorty; derived from nice
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  struct proc *q_prev;         // The preceding process in the run queue
+  struct proc *q_next;         // The next process in the run queue (DLL)
 };
 
 // Process memory is laid out contiguously, low addresses first:

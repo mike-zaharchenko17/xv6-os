@@ -12,6 +12,120 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+// BEGIN CONDITIONAL COMPILATION
+#ifdef PRIORITY_SCHED
+#define PRIORITY_LEVELS 5
+#define PRIORITY_MIN 0
+#define PRIORITY_MAX 4
+
+// we're creating a doubly-linked queue (LL implementation) of the processes
+// with 'buckets' at each priority level
+
+struct run_queue {
+  struct proc *head;
+  struct proc *tail;
+  int length;
+};
+
+// The ready_queues structure is an array of run queues where index i corresponds
+// to priority level i
+
+/*
+  [
+    i=0: [*]<->[*]
+    i=1: [*]<->[*]<->[*]<->[*]<->[*]
+    i=2: [*]<->[*]<->[*]<->[*]<->[*]<->[*]<->[*]
+    i=3: [*]<->[*]<->[*]
+    i=4: [*]<->[*]<->[*]<->[*]<->[*]<->[*]
+  ]
+
+  something like this^, but the 'pX:' does not symbolize a k/v pair
+*/
+
+static struct run_queue ready_queues[PRIORITY_LEVELS];
+
+static void rq_push_tail_locked(int level, struct proc *p) {
+  if (!holding(&ptable.lock)) {
+    panic("rq_push_tail_locked: ptable.lock not held");
+  }
+
+  struct run_queue *q = &ready_queues[level];
+
+  p->q_prev = q->tail;
+  p->q_next = 0;
+
+  // if tail is not null (queue not empty) then set current tail's
+  // next ptr to point to p
+  // otherwise set head to p
+  if (q->tail != 0) { 
+    q->tail->q_next = p;
+  } else {
+    // if empty: head = p
+    q->head = p;
+  }
+
+  // p is the new tail
+  q->tail = p;
+  // grow queue
+  q->length++;
+}
+
+static void rq_remove_locked(struct proc *p) {
+  if (!holding(&ptable.lock)) {
+    panic("rq_remove_locked: ptable.lock not held");
+  }
+
+  int level = p->priority;
+  struct run_queue *q = &ready_queues[level];
+
+  if (p->q_prev != 0) {
+    p->q_prev->q_next = p->q_next;
+  } else {
+    q->head = p->q_next;
+  }
+
+  if (p->q_next != 0) {
+    p->q_next->q_prev = p->q_prev;
+  } else {
+    q->tail = p->q_prev;
+  }
+
+  p->q_prev = 0;
+  p->q_next = 0;
+  q->length--;
+}
+
+static struct proc * rq_pop_head_locked(int level) {
+  if (!holding(&ptable.lock)) {
+    panic("rq_pop_head_locked: ptable.lock not held");
+  }
+
+  struct run_queue *q = &ready_queues[level];
+
+  struct proc *p = q->head;
+
+  if (p == 0) {
+    return 0;
+  }
+
+  q->head = p->q_next;
+
+  if (q->head != 0) {
+    // proc -> q_prev
+    q->head->q_prev = 0;
+  } else {
+    q->tail = 0;
+  }
+
+  p->q_prev = 0;
+  p->q_next = 0;
+  q->length--;
+
+  return p;
+}
+// END CONDITIONAL COMPILATION
+#endif
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -55,7 +169,7 @@ mycpu(void)
 // Disable interrupts so that we are not rescheduled
 // while reading proc from the cpu structure
 struct proc*
-myproc(void) {
+myproc(void) { 
   struct cpu *c;
   struct proc *p;
   pushcli();
@@ -112,6 +226,13 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  p->nice = 2;
+  p->priority = 2;
+
+  // this is harmless in round robin so it can stay
+  p->q_prev = 0;
+  p->q_next = 0;
+
   return p;
 }
 
@@ -147,6 +268,12 @@ userinit(void)
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
   acquire(&ptable.lock);
+
+  #ifdef PRIORITY_SCHED
+  // push to the queue that corresponds with this process's
+  // if in priority scheduler mode
+  rq_push_tail_locked(p->priority, p);
+  #endif
 
   p->state = RUNNABLE;
 
@@ -214,6 +341,10 @@ fork(void)
 
   acquire(&ptable.lock);
 
+  #ifdef PRIORITY_SCHED
+  rq_push_tail_locked(np->priority, np);
+  #endif
+
   np->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -251,17 +382,35 @@ exit(void)
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
+  // ^ in our scheduler, this will set runnable and 
+  // enqueue this process's parent
 
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == curproc){
       p->parent = initproc;
       if(p->state == ZOMBIE)
+        // this will enqueue the zombie's parents
         wakeup1(initproc);
     }
   }
 
   // Jump into the scheduler, never to return.
+
+  /*
+  checks the following conditions
+    - it's in the middle (both q_next and q_prev not null)
+    - it's at the head (q_next not null)
+    - it's at the tail (q_prev not null)
+    - tt's the only element in the queue (q_prev and q_next both null)
+  */
+
+  #ifdef PRIORITY_SCHED
+  if (curproc->q_prev ||  curproc->q_next || ready_queues[curproc->priority].head == curproc) {
+    rq_remove_locked(curproc);
+  }
+  #endif
+
   curproc->state = ZOMBIE;
   sched();
   panic("zombie exit");
@@ -269,6 +418,11 @@ exit(void)
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
+
+// we don't need to do anything here bc if the child is a zombie
+// it was already removed from queue in exit() and if the parent
+// is sleeping waiting for the child to exit, we will have removed it
+// from the queue in sleep()
 int
 wait(void)
 {
@@ -325,13 +479,58 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
+  #ifdef PRIORITY_SCHED
+
+  for (;;) {
+    sti();
+
+    acquire(&ptable.lock);
+
+    p = 0;
+
+    for (int lvl = PRIORITY_MIN; lvl <= PRIORITY_MAX; lvl++) {
+      if (ready_queues[lvl].length > 0) {
+        p = rq_pop_head_locked(lvl);
+        // break here early, run proc, and reset this loop at highest priority
+        break;
+      }
+    }
+
+    if (p == 0) {
+      release (&ptable.lock);
+      continue;
+    }
+
+    // run chosen proc
+
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    /*
+    we're back from p. it has either:
+      - set state=RUNNABLE and enqueued itself in yield(), or
+      - gone to SLEEPING in sleep(), or
+      - exited to ZOMBIE in exit().
+    */
+    c->proc = 0;
+
+    release (&ptable.lock);
+  }
+
+  #else
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -350,9 +549,11 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
 
+    release(&ptable.lock);
   }
+
+  #endif
 }
 
 // Enter scheduler.  Must hold only ptable.lock
@@ -386,7 +587,16 @@ void
 yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
+
+  struct proc *p = myproc();
+
+  #ifdef PRIORITY_SCHED
+    p->state = RUNNABLE;
+    rq_push_tail_locked(p->priority, p);
+  #else
+    p->state = RUNNABLE;
+  #endif
+
   sched();
   release(&ptable.lock);
 }
@@ -437,6 +647,20 @@ sleep(void *chan, struct spinlock *lk)
   }
   // Go to sleep.
   p->chan = chan;
+
+  #ifdef PRIORITY_SCHED
+    if (!holding(&ptable.lock)) {
+      panic("sleep: ptable.lock not held");
+    }
+
+    // protect invariants
+    if (p->q_prev || p->q_next || ready_queues[p->priority].head == p) {
+      // we have to remove the process from the run queue
+      // because it is no longer runnable- it is about to be sleeping
+      rq_remove_locked(p);
+    }
+  #endif
+
   p->state = SLEEPING;
 
   sched();
@@ -459,9 +683,17 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
+  // iterates through all processes in the ptable
+  // and wakes all sleeping processes
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if (p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+      #ifdef PRIORITY_SCHED
+      // put it back on the run queue since it is runnable again
+      // otherwise the scheduler cannot see it
+      rq_push_tail_locked(p->priority, p);
+      #endif
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -486,8 +718,12 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING) {
         p->state = RUNNABLE;
+        #ifdef PRIORITY_SCHED
+        rq_push_tail_locked(p->priority, p);
+        #endif
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -523,7 +759,8 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    // in procdump()
+    cprintf("%d %s %s n=%d prio=%d", p->pid, state, p->name, p->nice, p->priority);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
