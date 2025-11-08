@@ -718,8 +718,12 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING) {
         p->state = RUNNABLE;
+        #ifdef PRIORITY_SCHED
+        rq_push_tail_locked(p->priority, p);
+        #endif
+      }
       release(&ptable.lock);
       return 0;
     }
