@@ -7,12 +7,14 @@
 #include "proc.h"
 #include "spinlock.h"
 
-#define PRIORITY_LEVELS 5
-
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
+
+// BEGIN CONDITIONAL COMPILATION
+#ifdef PRIORITY_SCHED
+#define PRIORITY_LEVELS 5
 
 // we're creating a doubly-linked queue (LL implementation) of the processes
 // with 'buckets' at each priority level
@@ -119,6 +121,7 @@ static struct proc * rq_pop_head_locked(int level) {
 
   return p;
 }
+#endif
 
 static struct proc *initproc;
 
@@ -222,6 +225,8 @@ found:
 
   p->nice = 2;
   p->priority = 2;
+
+  // this is harmless in round robin so it can stay
   p->q_prev = 0;
   p->q_next = 0;
 
@@ -260,6 +265,12 @@ userinit(void)
   // writes to be visible, and the lock is also needed
   // because the assignment might not be atomic.
   acquire(&ptable.lock);
+
+  #ifdef PRIORITY_SCHED
+  // push to the queue that corresponds with this process's
+  // if in priority scheduler mode
+  rq_push_tail_locked(p->priority, p);
+  #endif
 
   p->state = RUNNABLE;
 
