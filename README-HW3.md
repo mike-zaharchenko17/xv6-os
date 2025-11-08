@@ -1,3 +1,15 @@
+### How to Run ###
+
+1. boot up codespace on branch hw3/scheduler
+2. configure your environment with [the class guide](https://docs.google.com/document/d/1bsPGZdJ27jDAH2IKA29RQUk6ilfo6pCevHgAw4bZap8/edit?tab=t.0)
+3. to run with scheduler
+    - don't touch the makefile
+4. to run without scheduler
+    - in Makefile, comment out line 81 (CFLAGS += -DPRIORITY_SCHED)
+5. run the following
+    - make clean
+    - make qemu-nox
+
 ### nice ###
 
 To set up the nice system call:
@@ -37,6 +49,8 @@ To set up the nice system call:
 
 ### scheduler ###
 
+The scheduler uses an array of priority buckets, each containing a double ended queue where the priority level corresponds to index i.
+
 [
     i=0: [*]<->[*]
     i=1: [*]<->[*]<->[*]<->[*]
@@ -44,6 +58,36 @@ To set up the nice system call:
     i=3: [*]<->[*]<->[*]
     i=4: [*]<->[*]<->[*]<->[*]<->[*]<->[*]
 ]
+
+To make this work, I added the following to the proc struct (proc.h)
+    - proc *q_prev
+    - proc *q_next
+
+These are intrusive links. They effectively make each process a node in the DE queues and mean you don't have to malloc a queue node for each process. This gives us O(1) enqueue and dequeue and O(n) lookup.
+
+The structures that make up this queue, as well as helper methods that enable the queue to function are defined in proc.c
+
+syscalls modified
+
+### Tests ###
+
+Test helpers are defined at testhelpers.h
+
+- yieldn(int)
+    - yields n times
+- burn(int)
+    - busy waits for the number of ticks specified in the argument
+
+**hw3test1.c**
+
+The goal of this test is to get roughly alternating input between children. The children are both spawned with the default priority. Therefore, one should not overtake the other.
+
+
+
+
+
+
+
 
 
 
