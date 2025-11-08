@@ -15,6 +15,8 @@ struct {
 // BEGIN CONDITIONAL COMPILATION
 #ifdef PRIORITY_SCHED
 #define PRIORITY_LEVELS 5
+#define PRIORITY_MIN 0
+#define PRIORITY_MAX 4
 
 // we're creating a doubly-linked queue (LL implementation) of the processes
 // with 'buckets' at each priority level
@@ -477,13 +479,58 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
+  #ifdef PRIORITY_SCHED
+
+  for (;;) {
+    sti();
+
+    acquire(&ptable.lock);
+
+    p = 0;
+
+    for (int lvl = PRIORITY_MIN; lvl <= PRIORITY_MAX; lvl++) {
+      if (ready_queues[lvl].length > 0) {
+        p = rq_pop_head_locked(lvl);
+        // break here early, run proc, and reset this loop at highest priority
+        break;
+      }
+    }
+
+    if (p == 0) {
+      release (&ptable.lock);
+      continue;
+    }
+
+    // run chosen proc
+
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    /*
+    we're back from p. it has either:
+      - set state=RUNNABLE and enqueued itself in yield(), or
+      - gone to SLEEPING in sleep(), or
+      - exited to ZOMBIE in exit().
+    */
+    c->proc = 0;
+
+    release (&ptable.lock);
+  }
+
+  #else
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
@@ -502,9 +549,11 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
+    
     release(&ptable.lock);
-
   }
+
+  #endif
 }
 
 // Enter scheduler.  Must hold only ptable.lock

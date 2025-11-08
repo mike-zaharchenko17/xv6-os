@@ -1,5 +1,3 @@
-#define PRIORITY_MIN 0
-#define PRIORITY_MAX 4
 #define NICE_MIN 0
 #define NICE_MAX 4
 
