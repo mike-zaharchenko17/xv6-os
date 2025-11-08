@@ -380,17 +380,35 @@ exit(void)
 
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
+  // ^ in our scheduler, this will set runnable and 
+  // enqueue this process's parent
 
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == curproc){
       p->parent = initproc;
       if(p->state == ZOMBIE)
+        // this will enqueue the zombie's parents
         wakeup1(initproc);
     }
   }
 
   // Jump into the scheduler, never to return.
+
+  /*
+  checks the following conditions
+    - it's in the middle (both q_next and q_prev not null)
+    - it's at the head (q_next not null)
+    - it's at the tail (q_prev not null)
+    - tt's the only element in the queue (q_prev and q_next both null)
+  */
+
+  #ifdef PRIORITY_SCHED
+  if (curproc->q_prev ||  curprov->q_next || ready_queues[curproc->priority].head == curproc) {
+    rq_remove_locked(curproc);
+  }
+  #endif
+
   curproc->state = ZOMBIE;
   sched();
   panic("zombie exit");
@@ -398,6 +416,11 @@ exit(void)
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
+
+// we don't need to do anything here bc if the child is a zombie
+// it was already removed from queue in exit() and if the parent
+// is sleeping waiting for the child to exit, we will have removed it
+// from the queue in sleep()
 int
 wait(void)
 {
@@ -583,6 +606,8 @@ sleep(void *chan, struct spinlock *lk)
 
     // protect invariants
     if (p->q_prev || p->q_next || ready_queues[p->priority].head == p) {
+      // we have to remove the process from the run queue
+      // because it is no longer runnable- it is about to be sleeping
       rq_remove_locked(p);
     }
   #endif
@@ -609,10 +634,14 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
+  // iterates through all processes in the ptable
+  // and wakes all sleeping processes
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
       #ifdef PRIORITY_SCHED
+      // put it back on the run queue since it is runnable again
+      // otherwise the scheduler cannot see it
       rq_push_tail_locked(p->priority, p);
       #endif
     }
