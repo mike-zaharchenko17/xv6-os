@@ -186,6 +186,9 @@ UPROGS=\
 	_hw3test1\
 	_hw3test2\
 	_hw3test3\
+	_hw3test4\
+	_hw3test5\
+	_hw3test6\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
