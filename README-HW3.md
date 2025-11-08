@@ -10,6 +10,9 @@
     - make clean
     - make qemu-nox
 
+
+Alternatively, you can just delete line 81 of Makefile and run it by passing flags like `make qemu-nox CFLAGS+='-DPRIORITY_SCHED'`
+
 ### nice ###
 
 To set up the nice system call:
@@ -67,9 +70,23 @@ These are intrusive links. They effectively make each process a node in the DE q
 
 The structures that make up this queue, as well as helper methods that enable the queue to function are defined in proc.c
 
-syscalls modified
+The general rule is that when a process becomes runnable, it should be enqueued so that the scheduler can see it, and when a process transitions from a runnable state to a no-longer-runnable state (ZOMBIE or SLEEPING), it should be dequeued. If a process begins running, it is dequeued as well, but via pop rather than removal.
+
+The contract looks like:
+
+Runnable -> Running | Popped | Scheduler pops from queue 
+
+Running -> Sleeping | Removed manually in sleep() | Waiting on a channel; must be removed to not be picked again
+
+Running -> Zombie | Removed in exit() | Process has finished execution and will never be scheduled again
+
+Running -> Runnable | Re-enqueued in yield() | voluntarily yields CPU and is put back at the tail of its PQ
+
+Sleeping -> Runnable | Re-enqueued in wakeup1() | Process’s event is complete — it’s now ready to run again.
 
 ### Tests ###
+
+To run tests, set up xv6 with make qemu-nox and invoke the hw3testX files
 
 Test helpers are defined at testhelpers.h
 
@@ -81,6 +98,23 @@ Test helpers are defined at testhelpers.h
 **hw3test1.c**
 
 The goal of this test is to get roughly alternating input between children. The children are both spawned with the default priority. Therefore, one should not overtake the other.
+
+Expected output: interweaved input ABABABABABAABABA roughly
+
+**hw3test2.c**
+
+The goal of this test is to make sure nice clamps properly
+
+**hw3test3.c**
+
+The goal of this test is to ensure that the high priority child prints faster 
+
+Expected output: SSSSS child done OK
+
+**hw4test4.c**
+
+
+
 
 
 
