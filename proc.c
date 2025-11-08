@@ -121,6 +121,7 @@ static struct proc * rq_pop_head_locked(int level) {
 
   return p;
 }
+// END CONDITIONAL COMPILATION
 #endif
 
 static struct proc *initproc;
@@ -337,6 +338,10 @@ fork(void)
   pid = np->pid;
 
   acquire(&ptable.lock);
+
+  #ifdef PRIORITY_SCHED
+  rq_push_tail_locked(np->priority, np);
+  #endif
 
   np->state = RUNNABLE;
 
