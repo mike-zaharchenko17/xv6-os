@@ -29,7 +29,7 @@ void head_fd(int fd, int N) {
 
     // guard for zero case
     if (N <= 0) {
-        return
+        return;
     }
 
     // read 512 bytes to the buffer
