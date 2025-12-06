@@ -16,6 +16,41 @@ int all_digits(char *s) {
     return 1;
 }
 
+char buf[512];
+
+/*
+design: 
+the buffer keeps 'rolling' and reading 512 bytes
+*/
+void head_fd(int fd, int N) {
+    int line_count = 0;
+    int bytes_read;
+    int done;
+
+    // read 512 bytes to the buffer
+    while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
+        // go byte by byte
+        for (int b = 0; b < bytes_read; b++) {
+            // print each byte (character) to stdout
+            printf(1, "%c", buf[b]);
+            // check if newline character
+            if (buf[b] == '\n') {
+                // increment line count
+                line_count++;
+                // if we've reached the max number of lines,
+                // break out of both loops
+                if (line_count == N) {
+                    done = 1;
+                    break;
+                }
+            }
+        }
+        if (done) {
+            break;
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     /*
     head FILE
@@ -75,7 +110,7 @@ int main(int argc, char *argv[]) {
                 i += 2;
             // fallthrough
             } else {
-                printf(2, 'head: invalid usage');
+                printf(2, "head: invalid usage");
                 exit();
             }
         // handle -N case
