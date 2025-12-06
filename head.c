@@ -123,6 +123,9 @@ int main(int argc, char *argv[]) {
     // once we've parsed the argument, if our ptr is
     // gte the argc, no files have been provided so we
     // must read from stdin
+    int num_files_remaining = argc - i;
+    int idx_last_file = argc - 1;
+
     if (i >= argc) {
         head_fd(0, N);
     } else {
@@ -131,6 +134,10 @@ int main(int argc, char *argv[]) {
         // arguments end, so this iterates through the rest of the parameters,
         // which, by convention, are files
         for (; i < argc; i++) {
+            if (num_files_remaining > 1) {
+                // decide whether we need to do headers
+                printf(1, "==> %s <==\n", argv[i]);
+            }
             int fd = open(argv[i], 0);
             if (fd < 0) {
                 printf(2, "head: cannot open %s\n", argv[i]);
@@ -138,6 +145,10 @@ int main(int argc, char *argv[]) {
             }
             head_fd(fd, N);
             close(fd);
+            // decide whether we need to print a \n
+            // will auto-fail if there is only one file
+            // as i will == idx_last_file
+            if (i != idx_last_file) printf(2, "\n");
         }
     }
 
