@@ -27,6 +27,11 @@ void head_fd(int fd, int N) {
     int bytes_read;
     int done = 0;
 
+    // guard for zero case
+    if (N <= 0) {
+        return
+    }
+
     // read 512 bytes to the buffer
     while (!done && (bytes_read = read(fd, buf, sizeof(buf))) > 0) {
         // go byte by byte
