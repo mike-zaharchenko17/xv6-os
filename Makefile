@@ -185,7 +185,7 @@ UPROGS=\
 	_genlong\
 
 fs.img: mkfs README $(UPROGS)
-	./mkfs fs.img README $(UPROGS)
+	./mkfs fs.img README a.txt b.txt $(UPROGS)
 
 -include *.d
 
