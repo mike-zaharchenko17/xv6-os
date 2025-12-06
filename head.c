@@ -65,29 +65,22 @@ int main(int argc, char *argv[]) {
 
         // handle -n case
         if (arg[0] == 'n') {
-            printf(1, "-n flag detected\n");
             // handle -nN case
             if (all_digits(arg + 1)) {
-                printf(1, "handling -nN case\n");
                 N = atoi(arg + 1);
-                printf(1, "head: N = %d\n", N);
                 i++;
             // handle -n N case
             } else if (i + 1 < argc && all_digits(argv[i+1])) {
-                printf(1, "handling -n N case\n");
                 N = atoi(argv[i+1]);
-                printf(1, "head: N = %d\n", N);
                 i += 2;
             // fallthrough
             } else {
-                printf(1, "head: invalid -n usage\n");
+                printf(2, 'head: invalid usage');
                 exit();
             }
         // handle -N case
         } else if (all_digits(arg)) {
-            printf(1, "handling -N case\n");
             N = atoi(arg);
-            printf(1, "head: N = %d\n", N);
             i++;
         }
     }
