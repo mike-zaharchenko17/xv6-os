@@ -25,10 +25,10 @@ the buffer keeps 'rolling' and reading 512 bytes
 void head_fd(int fd, int N) {
     int line_count = 0;
     int bytes_read;
-    int done;
+    int done = 0;
 
     // read 512 bytes to the buffer
-    while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
+    while (!done && (bytes_read = read(fd, buf, sizeof(buf))) > 0) {
         // go byte by byte
         for (int b = 0; b < bytes_read; b++) {
             // print each byte (character) to stdout
@@ -44,9 +44,6 @@ void head_fd(int fd, int N) {
                     break;
                 }
             }
-        }
-        if (done) {
-            break;
         }
     }
 }
@@ -110,13 +107,37 @@ int main(int argc, char *argv[]) {
                 i += 2;
             // fallthrough
             } else {
-                printf(2, "head: invalid usage");
+                printf(2, "head: invalid usage\n");
                 exit();
             }
         // handle -N case
         } else if (all_digits(arg)) {
             N = atoi(arg);
             i++;
+        } else {
+            printf(2, "head: invalid usage\n");
+            exit();
+        }
+    }
+
+    // once we've parsed the argument, if our ptr is
+    // gte the argc, no files have been provided so we
+    // must read from stdin
+    if (i >= argc) {
+        head_fd(0, N);
+    } else {
+        // handle one or more files
+        // the parser code above should put the pointer where the flag
+        // arguments end, so this iterates through the rest of the parameters,
+        // which, by convention, are files
+        for (; i < argc; i++) {
+            int fd = open(argv[i], 0);
+            if (fd < 0) {
+                printf(2, "head: cannot open %s\n", argv[i]);
+                continue;
+            }
+            head_fd(fd, N);
+            close(fd);
         }
     }
 
