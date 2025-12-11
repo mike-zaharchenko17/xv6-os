@@ -1,5 +1,5 @@
-#define MAX_THREADS 32;
-#define STACK_SIZE 8192;
+#define MAX_THREADS 32
+#define STACK_SIZE 8192
 
 enum threadstate { T_UNUSED, T_RUNNABLE, T_RUNNING, T_SLEEPING, T_ZOMBIE };
 
@@ -19,7 +19,7 @@ extern struct thread threads[MAX_THREADS];
 extern struct thread *current_thread;
 
 // for allocating TIDs
-extern int next_tid = 1;
+extern int next_tid;
 
 // API methods
 
