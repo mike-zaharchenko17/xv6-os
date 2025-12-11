@@ -1,0 +1,6 @@
+#define MAX_THREADS 32;
+#define STACK_SIZE 8192;
+
+enum threadstate { T_UNUSED, T_RUNNABLE, T_RUNNING, T_SLEEPING, T_ZOMBIE };
+
+
