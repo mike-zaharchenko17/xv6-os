@@ -120,10 +120,3 @@ be called to select a new thread to run
 */
 
 void thread_yield(void);
-
-
-
-
-
-
-
