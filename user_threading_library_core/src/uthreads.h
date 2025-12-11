@@ -1,3 +1,5 @@
+#include "types.h"
+
 #define MAX_THREADS 32
 #define STACK_SIZE 8192
 
