@@ -21,5 +21,109 @@ struct thread *current_thread;
 // for allocating TIDs
 int next_tid = 1;
 
+// API methods
+
+/*
+
+thread_init
+
+Overview:
+Initializes the threading system. This must be the first function a user calls.
+
+Must do:
+1.  Initialize global state (particularly the thread table)
+2.  Account for the fact that the main program is already running and
+    must be set up as the first thread (thread 0) in the T_RUNNING state
+
+*/
+
+void thread_init(void);
+
+/*
+
+thread_create
+
+Overview: 
+Creates a new thread that will execute the start_routine function, 
+passing arg as its only parameter.
+
+Must do:
+1.  Find an unused thread slot
+2.  Set its state to T_RUNNABLE
+3.  Initialize its stack
+
+The stack setup must ensure that when the scheduler first switches to 
+this thread, it begins by calling the start_routine function with its 
+argument, and when that function returns, the thread automatically 
+calls thread_exit() with the return value.
+
+*/
+void thread_create(void *(start_routine)(void*), void *arg);
+
+/*
+
+thread_join
+
+Overview:
+Waits for the thread specified by tid to terminate.
+
+Must do:
+1.  If the target trhread is not yet finished, the calling thread must block
+    until the target thread exits
+        a) i.e., set its own state to T_SLEEPING until target thread exits
+
+2.  Once the target is T_ZOMBIE, this function should clean up its resources
+        a) i.e., set its state to T_UNUSED and collect its return value
+
+*/
+void *thread_join(int tid);
+
+/*
+
+thread_exit
+
+Overview:
+Terminates the currently running thread.
+
+Must do:
+1.  Save the retval so it can be collected by a joining thread
+2.  Set the thread's state to T_ZOMBIE and wake up any other thread that
+    may be thread_join-ing on it (by setting that thread's state to T_RUNNABLE)
+
+This function does not return. It must call the scheduler to run a new thread.
+
+*/
+
+void thread_exit(void *retval);
+
+/*
+
+thread_self
+
+Overview: returns the tid of the currently running thread
+
+*/
+
+int thread_self(void);
+
+/*
+
+thread_yield
+
+Overview:
+Voluntarily gives up the CPU to allow other threads to run
+
+Must do:
+The current thread should be marked as T_RUNNABLE and the scheduler should
+be called to select a new thread to run
+
+*/
+
+void thread_yield(void);
+
+
+
+
+
 
 
