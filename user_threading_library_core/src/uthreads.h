@@ -13,13 +13,13 @@ struct thread {
 };
 
 // thread table
-struct thread threads[MAX_THREADS];
+extern struct thread threads[MAX_THREADS];
 
 // current thread ptr
-struct thread *current_thread;
+extern struct thread *current_thread;
 
 // for allocating TIDs
-int next_tid = 1;
+extern int next_tid = 1;
 
 // API methods
 
