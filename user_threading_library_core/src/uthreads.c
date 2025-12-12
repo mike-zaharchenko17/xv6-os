@@ -33,3 +33,48 @@ void thread_init(void) {
 int thread_self(void) {
     return current_thread->tid;
 }
+
+void thread_schedule(void) {
+    struct thread *old = current_thread;
+    struct thread *next = 0;
+
+    // idx of the current thread
+    int oldi = (int)(old - threads);
+    
+    for (int k = oldi; k <= MAX_THREADS; k++) {
+        // take the offset into the array and add our idx
+        // element to it; mod it by max_threads to ensure
+        // that we wrap around and never go out of bounds (i.e.,
+        // we'll always come back to 0 and then go forward from 
+        // 0 if we exceed MAX_THREADS)
+
+        int i = (oldi + k) % MAX_THREADS;
+        if (threads[i].tstate == T_RUNNABLE) {
+            next = &threads[i];
+            break;
+        }
+    }
+
+    // if we exit loop, no one can run, so just
+    // either continue current or exit if current is not running
+    if (next == 0) {
+        if (old->tstate == T_RUNNING) {
+            return;
+        }
+        exit();
+    }
+
+    // unschedule old thread
+    if (old->tstate == T_RUNNING) {
+        old->tstate = T_RUNNABLE;
+    }
+
+    // if old was SLEEPING or ZOMBIE, leave it alone.
+
+    // set new thread to running
+    next->tstate = T_RUNNING;
+    current_thread = next;
+
+    // switch context (when this returns, we're back on some other schedule return path)
+    thread_switch(old, next);
+}
