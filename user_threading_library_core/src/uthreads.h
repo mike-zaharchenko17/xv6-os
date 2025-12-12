@@ -31,7 +31,7 @@ struct thread {
 
     int joiner_tid; //-1 if none
 
-    struct thread *next_wait;
+    struct thread *qnext;
 };
 
 // thread table
