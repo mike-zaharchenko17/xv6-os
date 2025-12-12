@@ -18,10 +18,7 @@ void thread_init(void) {
     current_thread->tid = 0;
     current_thread->tstate = T_RUNNING;
     current_thread->stack = 0;
-
-    // a close approximation of where our esp is
-    uint esp_snapshot;
-    current_thread->sp = (uint) &esp_snapshot; 
+    current_thread->sp = 0;
 }
 
 int thread_self(void) {
