@@ -7,6 +7,8 @@ struct thread threads[MAX_THREADS];
 struct thread *current_thread = 0;
 int next_tid = 1;
 
+void thread_switch(struct thread *old, struct thread *next);
+
 void thread_init(void) {
     for (int i = 0; i < MAX_THREADS; i++) {
         threads[i].tid = -1;
