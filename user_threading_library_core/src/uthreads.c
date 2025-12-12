@@ -23,3 +23,7 @@ void thread_init(void) {
     uint esp_snapshot;
     current_thread->sp = (uint) &esp_snapshot; 
 }
+
+int thread_self(void) {
+    return current_thread->tid;
+}
