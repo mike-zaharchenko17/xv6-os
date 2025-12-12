@@ -78,3 +78,8 @@ void thread_schedule(void) {
     // switch context (when this returns, we're back on some other schedule return path)
     thread_switch(old, next);
 }
+
+void thread_yield(void) {
+    current_thread->tstate = T_RUNNABLE;
+    thread_schedule();
+}
