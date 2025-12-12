@@ -146,7 +146,7 @@ vectors.S: vectors.pl
 
 ULIB = ulib.o usys.o printf.o umalloc.o
 
-UTHREAD_LIB = user_threading_library_core/src/uthreads.o
+UTHREAD_LIB = user_threading_library_core/src/uthreads.o user_threading_library_core/src/thread_switch.o
 
 vpath %.c user_threading_library_core/tests user_threading_library_core/examples .
 
