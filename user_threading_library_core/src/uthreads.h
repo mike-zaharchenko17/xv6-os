@@ -6,12 +6,32 @@
 enum threadstate { T_UNUSED, T_RUNNABLE, T_RUNNING, T_SLEEPING, T_ZOMBIE };
 
 // thread structure
+
+/*
+invariants:
+
+- Exactly one thread is T_RUNNING at a time
+- A thread in T_ZOMVIE keeps its retval until join consumes it,
+  then slot becomes T_UNUSED
+
+*/
 struct thread {
+    uint sp; // stack ptr
     int tid;
     enum threadstate tstate;
 
     char *stack; // base of stack
-    uint sp; // stack ptr
+
+    // so the thread knows what to run
+    void *(*start_routine)(void *);
+    void *arg;
+
+    // return value for join
+    void *retval;
+
+    int joiner_tid; //-1 if none
+
+    struct thread *next_wait;
 };
 
 // thread table
@@ -60,7 +80,7 @@ argument, and when that function returns, the thread automatically
 calls thread_exit() with the return value.
 
 */
-void thread_create(void *(start_routine)(void*), void *arg);
+int thread_create(void *(*start_routine)(void *), void *arg);
 
 /*
 
