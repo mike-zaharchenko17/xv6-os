@@ -40,7 +40,6 @@ void thread_schedule(void) {
 
     // idx of the current thread
     int oldi = (int)(old - threads);
-    printf(1, "[uthreads.c/thread_schedule] oldi = %d\n", oldi);
 
     for (int k = 1; k <= MAX_THREADS; k++) {
         // take the offset into the array and add our idx
@@ -50,31 +49,23 @@ void thread_schedule(void) {
         // 0 if we exceed MAX_THREADS)
 
         int i = (oldi + k) % MAX_THREADS;
-        printf(1, "[uthreads.c]/thread_schedule] loop variable i is at %d\n", i);
         if (threads[i].tstate == T_RUNNABLE) {
-            printf(1, "[uthreads.c/thread_schedule] found runnable thread at %d\n", i);
             next = &threads[i];
             break;
         }
     }
 
-    printf(1, "[uthreads.c/thread_schedule] exited loop\n");
-
     // if we exit loop, no one can run, so just
     // either continue current or exit if current is not running
     if (next == 0) {
-        printf(1, "[uthreads.c/thread_schedule] no runnable thread found\n");
         if (old->tstate == T_RUNNING) {
-            printf(1, "[uthreads.c/thread_schedule] old thread is running; returning\n");
             return;
         }
-        printf(1, "[uthreads.c/thread_schedule] nothing to schedule; exiting\n");
         exit();
     }
 
     // unschedule old thread
     if (old->tstate == T_RUNNING) {
-        printf(1, "[uthreads.c/thread_schedule] unscheduling old thread; setting state to runnable\n");
         old->tstate = T_RUNNABLE;
     }
 
@@ -85,13 +76,88 @@ void thread_schedule(void) {
     current_thread = next;
 
     // switch context (when this returns, we're back on some other schedule return path)
-    printf(1, "[uthreads.c/thread_schedule] switching to new thread\n");
     thread_switch(old, next);
 }
 
 void thread_yield(void) {
-    printf(1, "[uthreads.c/thread_yield] yielding from thread %d\n", current_thread->tid);
     current_thread->tstate = T_RUNNABLE;
-    printf(1, "[uthreads.c/thread_yield] calling scheduler\n");
     thread_schedule();
+}
+
+void thread_exit(void *retval) {
+    current_thread->retval = retval;
+    current_thread->tstate = T_ZOMBIE;
+    thread_schedule();
+
+    exit();
+}
+
+static void thread_trampoline(void) {
+    // call the current thread's start routine with its saved arg
+    void *ret = current_thread->start_routine(current_thread->arg);
+    // when start_routine returns, call exit to save this return value
+    thread_exit(ret);
+}
+
+int thread_create(void *(*start_routine)(void *), void *arg) {
+    int idx = -1;
+    // find a free slot; skip 0
+    for (int i = 1; i < MAX_THREADS; i++) {
+        if (threads[i].tstate == T_UNUSED) {
+            idx = i;
+            break;
+        }
+    }
+
+    // if not found, return -1
+    if (idx < 0) {
+        return -1;
+    }
+
+    // pull the thread at idx from the table
+    struct thread *t = &threads[idx];
+
+    // allocate memory for this thread's stack
+    char *stk = (char *)malloc(STACK_SIZE);
+
+    if (stk == 0) {
+        return -1;
+    }
+
+    // init metadata
+    t->tid = next_tid;
+    next_tid++;
+
+    t->tstate = T_RUNNABLE;
+
+    t->stack = stk;
+    t->sp = 0;
+
+    t->start_routine = start_routine;
+    t->arg = arg;
+
+    t->retval = 0;
+    t->joiner_tid = -1;
+    t->qnext = 0;
+
+    // point to the top of the stack
+    uint *sp = (uint *)(stk + STACK_SIZE);
+
+    // we want to spoof a stack for a thread that does not yet have a stack
+    // so that thread_switch can treat it like a thread that was previously
+    // running
+
+    // we can set thread_trampoline as that return address
+    // so that it "returns" into thread_trampoline and start running
+    // C code
+    *--sp = (uint)thread_trampoline;
+
+    *--sp = 0; //ebp
+    *--sp = 0; //ebx
+    *--sp = 0; //esi
+    *--sp = 0; //edi
+
+    t->sp = (uint)sp;
+
+    return t->tid;
 }
