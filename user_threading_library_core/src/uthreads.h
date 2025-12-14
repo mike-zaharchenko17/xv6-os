@@ -142,3 +142,66 @@ be called to select a new thread to run
 */
 
 void thread_yield(void);
+
+/****** SYNC PRIMITIVES *****/
+
+// MUTEX
+
+typedef struct mutex {
+    // 1: locked, 0: unlocked
+    int locked;
+    // since threads have a qnext attribute, we can just keep track of the head
+    struct thread *qhead; 
+    struct thread *owner;
+} mutex_t;
+
+/*
+
+mutex_init
+
+Overview: initializes a mutex_t struct before its first use
+Must do: set mutex's internal state to "unlocked"
+
+*/
+
+void mutex_init(mutex_t *m);
+
+/*
+
+mutex lock
+
+Overview: acquires the mutex for the currently-running thread
+
+Must do:
+
+1.  if mutex is unlocked, the function should mark it as "locked" and return immediately
+    a)  it should also track the owner
+
+2.  if the mutex is already locked by another thread, the function must "block"
+    a)  in other words, it must set the current thread's state to T_SLEEPING, add it to the mutex's
+        wait queue, and call thread_schedule() to run another thread
+
+*/
+
+void mutex_lock(mutex_t *m);
+
+/*
+
+mutex_unlock
+
+Overview: releases the mutex held by the currently-running thread
+
+Must do:
+
+1.  First, verify that the currently running thread is the one that holds the lock
+2.  Then, check if any other threads are waiting in its queue
+3.  If no threads are waiting, it simply marks the mutex as "unlocked"
+4.  IF threads ARE waiting, it must wake one of them up by removing it from the wait queue
+    and setting its state to T_RUNNABLE
+
+*/
+
+void mutex_unlock(mutex_t *m);
+
+
+

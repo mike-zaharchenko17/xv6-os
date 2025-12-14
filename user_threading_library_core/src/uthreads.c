@@ -7,6 +7,8 @@ struct thread threads[MAX_THREADS];
 struct thread *current_thread = 0;
 int next_tid = 1;
 
+struct mutex_t *mutex = 0;
+
 void thread_switch(struct thread *old, struct thread *next);
 
 static struct thread* find_by_tid(int tid) {
@@ -235,4 +237,16 @@ void *thread_join(int tid) {
 
     // return retval to caller; retval is a void pointer so the compiler won't complain
     return ret;
+}
+
+void mutex_init(mutex_t *m) {
+    printf(1, "mutex_init stub");
+}
+
+void mutex_lock(mutex_t *m) {
+    printf(1, "mutex_lock stub");
+}
+
+void mutex_unlock(mutex_t *m) {
+    printf(1, "mutex_unlock stub");
 }
