@@ -9,6 +9,31 @@ int next_tid = 1;
 
 void thread_switch(struct thread *old, struct thread *next);
 
+static struct thread* find_by_tid(int tid) {
+    for (int i = 0; i < MAX_THREADS; i++) {
+        if (threads[i].tid == tid) {
+            return &threads[i];
+        }
+    }
+    return 0;
+}
+
+static void reset_slot(struct thread *t) {
+    if (t->stack) {
+        free(t->stack);
+        t->stack = 0;
+    }
+
+    t->tid = -1;
+    t->sp = 0;
+    t->start_routine = 0;
+    t->arg = 0;
+    t->retval = 0;
+    t->joiner_tid = -1;
+    t->qnext = 0;
+    t->tstate = T_UNUSED;
+}
+
 void thread_init(void) {
     for (int i = 0; i < MAX_THREADS; i++) {
         threads[i].tid = -1;
@@ -87,6 +112,15 @@ void thread_yield(void) {
 void thread_exit(void *retval) {
     current_thread->retval = retval;
     current_thread->tstate = T_ZOMBIE;
+
+    if (current_thread->joiner_tid != -1) {
+        struct thread *joiner = find_by_tid(current_thread->joiner_tid);
+        // prevent waking a freed or reused joiner
+        if (joiner) {
+            joiner->tstate = T_RUNNABLE;
+        }
+    }
+
     thread_schedule();
 
     exit();
@@ -160,4 +194,45 @@ int thread_create(void *(*start_routine)(void *), void *arg) {
     t->sp = (uint)sp;
 
     return t->tid;
+}
+
+void *thread_join(int tid) {
+    if (tid == current_thread->tid) {
+        printf(1, "invalid target tid; cannot self-join");
+        return 0;
+    }
+
+    struct thread* target_thread = find_by_tid(tid);
+
+    // find the thread with the target TID
+    
+    if (target_thread == 0) {
+        printf(1, "invalid target tid; thread not found");
+        return 0;
+    }
+
+    if (target_thread->tstate == T_UNUSED) {
+        printf(1, "invalid target tid; thread is unused");
+        return 0;
+    }
+
+    if (target_thread->joiner_tid != -1 && target_thread->joiner_tid != current_thread->tid) {
+        printf(1, "invalid target tid; thread already has a joiner");
+        return 0;
+    }
+
+    target_thread->joiner_tid = current_thread->tid;
+
+    // sleep until the target thread exits
+    while (target_thread->tstate != T_ZOMBIE) {
+        current_thread->tstate = T_SLEEPING;
+        thread_schedule();
+    }
+
+    void *ret = target_thread->retval;
+
+    reset_slot(target_thread);
+
+    // return retval to caller; retval is a void pointer so the compiler won't complain
+    return ret;
 }
