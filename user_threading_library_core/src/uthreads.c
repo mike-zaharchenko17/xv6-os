@@ -330,6 +330,7 @@ void sem_init(sem_t *s, int value) {
         printf(1, "sem_init: value must be a positive, nonzero value");
         exit();
     }
+    s->count = value;
     s->qhead = 0;
     s->qtail = 0;
 }
