@@ -8,6 +8,7 @@ struct thread *current_thread = 0;
 int next_tid = 1;
 
 struct mutex_t *mutex = 0;
+struct sem_t *semaphore = 0;
 
 void thread_switch(struct thread *old, struct thread *next);
 
@@ -320,4 +321,18 @@ void mutex_unlock(mutex_t *m) {
     m->locked = 1;
     m->owner = waiter;
     waiter->tstate = T_RUNNABLE;
+}
+
+/* SEMAPHORE IMPLEMENTATION */
+
+void sem_init(sem_t *s, int value) {
+    printf(1, "sem_init stub");
+}
+
+void sem_wait(sem_t *s) {
+    printf(1, "sem_wait stub");
+}
+
+void sem_post(sem_t *s) {
+    printf(1, "sem_post stub");
 }

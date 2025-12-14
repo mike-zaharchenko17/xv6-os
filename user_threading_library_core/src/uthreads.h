@@ -145,7 +145,7 @@ void thread_yield(void);
 
 /****** SYNC PRIMITIVES *****/
 
-// MUTEX
+/*** MUTEX ***/
 
 typedef struct mutex {
     // 1: locked, 0: unlocked
@@ -203,6 +203,56 @@ Must do:
 */
 
 void mutex_unlock(mutex_t *m);
+
+/*** SEMAPHORE ***/
+
+typedef struct sem {
+    int count;
+    struct thread *qhead;
+    struct thread *qtail;
+} sem_t;
+
+
+/*
+
+sem_init
+
+Overview: initializes a semaphore with a given starting value
+
+*/
+
+void sem_init(sem_t *s, int value);
+
+/*
+
+sem_wait
+
+Overview: decrements the count; if count becomes negative, block.
+
+Must do:
+1.  Decrement the count
+2.  If count is now negative, add current thread to wait queue, set state to T_SLEEPING, and call thread_schedule()
+
+*/
+
+void sem_wait(sem_t *s);
+
+/*
+
+sem_post
+
+Overview: Increments the count. If threads are waiting, wake one.
+
+Must do:
+1.  Increment the count
+2.  If count was negative (i.e., threads were waiting), remove one
+    thread from the wait queue and set its state to T_RUNNABLE
+
+*/
+
+void sem_post(sem_t *s);
+
+
 
 
 
