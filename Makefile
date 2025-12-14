@@ -194,6 +194,7 @@ UPROGS=\
 	_t_thread_init_test\
 	_t_thread_schedule_test_empty\
 	_t_thread_create_test\
+	_t_thread_join_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
