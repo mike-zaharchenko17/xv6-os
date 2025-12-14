@@ -326,7 +326,12 @@ void mutex_unlock(mutex_t *m) {
 /* SEMAPHORE IMPLEMENTATION */
 
 void sem_init(sem_t *s, int value) {
-    printf(1, "sem_init stub");
+    if (value <= 0) {
+        printf(1, "sem_init: value must be a positive, nonzero value");
+        exit();
+    }
+    s->qhead = 0;
+    s->qtail = 0;
 }
 
 void sem_wait(sem_t *s) {
