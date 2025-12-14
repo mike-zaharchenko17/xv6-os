@@ -239,11 +239,40 @@ void *thread_join(int tid) {
     return ret;
 }
 
+/* MUTEX IMPLEMENTATION */
+
 void mutex_init(mutex_t *m) {
     m->locked = 0;
     m->qhead = 0;
     m->qtail = 0;
     m->owner = 0;
+}
+
+static struct thread* m_wait_q_dequeue(mutex_t *m) {
+    struct thread *t = m->qhead;
+
+    if (!t) {
+        return 0
+    }
+
+    m->qhead = t->qnext;
+
+    if (m->qhead == 0)
+        m->qtail = 0;
+
+    t->qnext = 0;
+    return t;
+}
+
+static void m_wait_q_enqueue(mutex_t *m, struct thread *t) {
+    t->qnext = 0;
+
+    if (m->qtail) {
+        m->qtail->qnext = t;
+        m->qtail = t;
+    } else {
+        m->qhead = m->qtail = t;
+    }
 }
 
 void mutex_lock(mutex_t *m) {
@@ -253,24 +282,64 @@ void mutex_lock(mutex_t *m) {
         exit();
     }
 
+    // similar idea to join; if it's locked, enqueue it, put it
+    // to sleep, and run the scheduler
     while (m->locked) {
-        current_thread->qnext = 0;
-
-        if (m->qtail) {
-            m->qtail->qnext = current_thread;
-            m->qtail = current_thread;
-        } else {
-            m->qhead = current_thread;
-            m->qtail = m->qhead;
-        }
+        m_wait_q_enqueue(m, current_thread);
         current_thread->tstate = T_SLEEPING;
         thread_schedule();
     }
+
+    // otherwise, lock the mutex and set the owner to be the current thread
+    // we don't need to modify wait queue because if the mutex is not locked,
+    // there is nothing waiting for it
+    m->locked = 1;
+    m->owner = current_thread;
+}
+
+void mutex_lock(mutex_t *m) {
+    // if the current thread already holds mutex, error
+    if (m->owner == current_thread) {
+        printf(1, "mutex_lock: deadlock (self-lock)\n");
+        exit();
+    }
+
+    // similar idea to join; if it's locked, enqueue it, put it
+    // to sleep, and run the scheduler
+    while (m->locked && m->owner != current_thread) {
+        m_wait_q_enqueue(m, current_thread);
+        current_thread->tstate = T_SLEEPING;
+        thread_schedule();
+    }
+
+    // if we got here because of handoff, we already own it.
+    if (m->owner == current_thread) {
+        return;
+    }
+
+    // otherwise, lock the mutex and set the owner to be the current thread 
+    // we don't need to modify wait queue because if the mutex is not locked,
+    // there is nothing waiting for it
 
     m->locked = 1;
     m->owner = current_thread;
 }
 
 void mutex_unlock(mutex_t *m) {
-    printf(1, "mutex_unlock stub");
+    if (m->owner != current_thread) {
+        printf(1, "mutex_unlock: only the owner can unlock the mutex\n");
+        exit();
+    }
+
+    struct thread *waiter = m_wait_q_dequeue(m);
+    if (!waiter) {
+        m->locked = 0;
+        m->owner = 0;
+        return;
+    }
+
+    // handoff
+    m->locked = 1;
+    m->owner = waiter;
+    waiter->tstate = T_RUNNABLE;
 }
