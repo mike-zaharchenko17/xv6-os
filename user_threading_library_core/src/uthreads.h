@@ -152,6 +152,7 @@ typedef struct mutex {
     int locked;
     // since threads have a qnext attribute, we can just keep track of the head
     struct thread *qhead; 
+    struct thread *qtail;
     struct thread *owner;
 } mutex_t;
 

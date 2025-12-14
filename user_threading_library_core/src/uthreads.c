@@ -240,11 +240,35 @@ void *thread_join(int tid) {
 }
 
 void mutex_init(mutex_t *m) {
-    printf(1, "mutex_init stub");
+    m->locked = 0;
+    m->qhead = 0;
+    m->qtail = 0;
+    m->owner = 0;
 }
 
 void mutex_lock(mutex_t *m) {
-    printf(1, "mutex_lock stub");
+    if (m->owner == current_thread) {
+        // if the current thread already holds mutex, error
+        printf(1, "mutex_lock: deadlock (self-lock)\n");
+        exit();
+    }
+
+    while (m->locked) {
+        current_thread->qnext = 0;
+
+        if (m->qtail) {
+            m->qtail->qnext = current_thread;
+            m->qtail = current_thread;
+        } else {
+            m->qhead = current_thread;
+            m->qtail = m->qhead;
+        }
+        current_thread->tstate = T_SLEEPING;
+        thread_schedule();
+    }
+
+    m->locked = 1;
+    m->owner = current_thread;
 }
 
 void mutex_unlock(mutex_t *m) {
