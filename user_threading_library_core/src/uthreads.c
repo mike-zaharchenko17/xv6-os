@@ -252,7 +252,7 @@ static struct thread* m_wait_q_dequeue(mutex_t *m) {
     struct thread *t = m->qhead;
 
     if (!t) {
-        return 0
+        return 0;
     }
 
     m->qhead = t->qnext;
@@ -273,28 +273,6 @@ static void m_wait_q_enqueue(mutex_t *m, struct thread *t) {
     } else {
         m->qhead = m->qtail = t;
     }
-}
-
-void mutex_lock(mutex_t *m) {
-    if (m->owner == current_thread) {
-        // if the current thread already holds mutex, error
-        printf(1, "mutex_lock: deadlock (self-lock)\n");
-        exit();
-    }
-
-    // similar idea to join; if it's locked, enqueue it, put it
-    // to sleep, and run the scheduler
-    while (m->locked) {
-        m_wait_q_enqueue(m, current_thread);
-        current_thread->tstate = T_SLEEPING;
-        thread_schedule();
-    }
-
-    // otherwise, lock the mutex and set the owner to be the current thread
-    // we don't need to modify wait queue because if the mutex is not locked,
-    // there is nothing waiting for it
-    m->locked = 1;
-    m->owner = current_thread;
 }
 
 void mutex_lock(mutex_t *m) {
