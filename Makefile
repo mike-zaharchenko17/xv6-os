@@ -199,6 +199,7 @@ UPROGS=\
 	_t_no_mutex_race_test\
 	_t_semaphore_basic_test\
 	_t_semaphore_count_fifo_test\
+	_t_cond_var_producer_consumer_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

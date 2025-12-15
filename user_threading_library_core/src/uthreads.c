@@ -356,3 +356,66 @@ void sem_post(sem_t *s) {
         }
     }
 }
+
+/* CONDITION VARIABLE IMPLEMENTATION */
+
+void cond_init(cond_t *c) {
+    c->q.qhead = 0;
+    c->q.qtail = 0;
+}
+
+void cond_wait(cond_t *c, mutex_t *m) {
+    if (m->owner != current_thread || m->locked != 1) {
+        printf(1, "cond_wait: must be called while mutex is locked");
+        return;
+    }
+
+    wait_q_enqueue(&c->q, current_thread);
+
+    // it can't be preempted since it's a cooperative model, so this section
+    // should be 'atomic' even if there are no explicit guards in place to make it so.
+    
+    // thread_yield and/or thread_schedule are being not called in auxillary 
+    // functions such as mutex_unlock
+    mutex_unlock(m);
+
+    current_thread->tstate = T_SLEEPING;
+
+    thread_schedule();
+
+    /*
+    standard behavior: 
+    the caller should loop on the predicate i.e.,
+
+    mutex_lock(m)
+    while (!ready) {
+        cond_wait(c, m)
+    }
+    ... now proceed
+    mutex_unlock(m);
+    
+    because cond_t is not aware of what the condition actually is- it is just
+    a 'place' for threads to sleep.
+
+    the actual condition is a shared predicate that the mutex protects, so
+    we need to check that when the thread is signalled and wakes back up
+
+    a wakeup does not guarantee that the condition is met
+    */
+    mutex_lock(m);
+
+    return;
+}
+
+void cond_signal(cond_t *c) {
+    struct thread *waiter = wait_q_dequeue(&c->q);
+    if (waiter) waiter->tstate = T_RUNNABLE;
+}
+
+void cond_broadcast(cond_t *c) {
+    while (c->q.qhead != 0) {
+        struct thread *waiter = wait_q_dequeue(&c->q);
+        if (!waiter) break;
+        waiter->tstate = T_RUNNABLE;
+    }
+}
