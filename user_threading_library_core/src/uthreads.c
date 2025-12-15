@@ -412,7 +412,7 @@ void cond_signal(cond_t *c) {
     if (waiter) waiter->tstate = T_RUNNABLE;
 }
 
-void cond_broadcast(cond_t *c) {t pu
+void cond_broadcast(cond_t *c) {
     while (c->q.qhead != 0) {
         struct thread *waiter = wait_q_dequeue(&c->q);
         if (!waiter) break;
