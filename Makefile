@@ -197,6 +197,7 @@ UPROGS=\
 	_t_thread_join_test\
 	_t_mutex_test_counter\
 	_t_no_mutex_race_test\
+	_t_semaphore_basic_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
