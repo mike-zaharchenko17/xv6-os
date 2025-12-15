@@ -360,7 +360,8 @@ void sem_post(sem_t *s) {
 /* CONDITION VARIABLE IMPLEMENTATION */
 
 void cond_init(cond_t *c) {
-    printf(1, "stub for cond_init");
+    c->q.qhead = 0;
+    c->q.qtail = 0;
 }
 
 void cond_wait(cond_t *c, mutex_t *m) {
