@@ -326,8 +326,8 @@ void mutex_unlock(mutex_t *m) {
 /* SEMAPHORE IMPLEMENTATION */
 
 void sem_init(sem_t *s, int value) {
-    if (value <= 0) {
-        printf(1, "sem_init: value must be a positive, nonzero value");
+    if (value < 0) {
+        printf(1, "sem_init: value must be >= 0");
         exit();
     }
     s->count = value;
@@ -335,10 +335,50 @@ void sem_init(sem_t *s, int value) {
     s->qtail = 0;
 }
 
+// DRY this possibly? Create a DEQUE struct 
+
+static struct thread* s_wait_q_dequeue(sem_t *s) {
+    struct thread *t = s->qhead;
+
+    if (!t) {
+        return 0;
+    }
+
+    s->qhead = t->qnext;
+
+    if (s->qhead == 0)
+        s->qtail = 0;
+
+    t->qnext = 0;
+    return t;
+}
+
+static void s_wait_q_enqueue(sem_t *s, struct thread *t) {
+    t->qnext = 0;
+
+    if (s->qtail) {
+        s->qtail->qnext = t;
+        s->qtail = t;
+    } else {
+        s->qhead = s->qtail = t;
+    }
+}
+
 void sem_wait(sem_t *s) {
-    printf(1, "sem_wait stub");
+    s->count--;
+
+    if (s->count < 0) {
+        s_wait_q_enqueue(s, current_thread);
+        current_thread->tstate = T_SLEEPING;
+        thread_schedule();
+    }
 }
 
 void sem_post(sem_t *s) {
-    printf(1, "sem_post stub");
+    if (s->count++ < 0) {
+        struct thread *t = s_wait_q_dequeue(s);
+        if (t) {
+            t->tstate = T_RUNNABLE;
+        }
+    }
 }
