@@ -334,44 +334,15 @@ void sem_init(sem_t *s, int value) {
         exit();
     }
     s->count = value;
-    s->qhead = 0;
-    s->qtail = 0;
-}
-
-// DRY this possibly? Create a DEQUE struct 
-
-static struct thread* s_wait_q_dequeue(sem_t *s) {
-    struct thread *t = s->qhead;
-
-    if (!t) {
-        return 0;
-    }
-
-    s->qhead = t->qnext;
-
-    if (s->qhead == 0)
-        s->qtail = 0;
-
-    t->qnext = 0;
-    return t;
-}
-
-static void s_wait_q_enqueue(sem_t *s, struct thread *t) {
-    t->qnext = 0;
-
-    if (s->qtail) {
-        s->qtail->qnext = t;
-        s->qtail = t;
-    } else {
-        s->qhead = s->qtail = t;
-    }
+    s->q.qhead = 0;
+    s->q.qtail = 0;
 }
 
 void sem_wait(sem_t *s) {
     s->count--;
 
     if (s->count < 0) {
-        s_wait_q_enqueue(s, current_thread);
+        wait_q_enqueue(&s->q, current_thread);
         current_thread->tstate = T_SLEEPING;
         thread_schedule();
     }
@@ -379,7 +350,7 @@ void sem_wait(sem_t *s) {
 
 void sem_post(sem_t *s) {
     if (s->count++ < 0) {
-        struct thread *t = s_wait_q_dequeue(s);
+        struct thread *t = wait_q_dequeue(&s->q);
         if (t) {
             t->tstate = T_RUNNABLE;
         }
