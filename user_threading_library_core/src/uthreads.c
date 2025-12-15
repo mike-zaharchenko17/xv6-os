@@ -365,7 +365,45 @@ void cond_init(cond_t *c) {
 }
 
 void cond_wait(cond_t *c, mutex_t *m) {
-    printf(1, "stub for cond_wait");
+    if (m->owner != current_thread || m->locked != 1) {
+        printf(1, "cond_wait: must be called while mutex is locked");
+        return;
+    }
+
+    wait_q_enqueue(&c->q, current_thread);
+
+    // it can't be preempted since it's a cooperative model, so this section
+    // should be 'atomic' even if there are no explicit guards in place to make it so.
+    // no yields are being called in auxillary functions
+    mutex_unlock(m);
+
+    current_thread->tstate = T_SLEEPING;
+
+    thread_schedule();
+
+    /*
+    standard behavior: 
+    the caller should loop on the predicate i.e.,
+
+    mutex_lock(m)
+    while (!ready) {
+        cond_wait(c, m)
+    }
+    ... now proceed
+    mutex_unlock(m);
+    
+    because cond_t is not aware of what the condition actually is- it is just
+    a 'place' for threads to sleep.
+
+    the actual condition is a shared predicate that the mutex protects, so
+    we need to check that when the thread is signalled and wakes back up
+
+    a wakeup does not guarantee that the condition is met
+
+    */
+    mutex_lock(m);
+
+    return;
 }
 
 void cond_signal(cond_t *c) {
