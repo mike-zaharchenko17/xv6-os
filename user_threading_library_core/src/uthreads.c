@@ -369,7 +369,13 @@ void cond_wait(cond_t *c, mutex_t *m) {
 }
 
 void cond_signal(cond_t *c) {
-    printf(1, "stub for cond_signal");
+    struct thread *waiter = wait_q_dequeue(&c->q);
+    if (!waiter) {
+        printf(1, "cond_signal: queue empty");
+        return;
+    }
+    waiter->tstate = T_RUNNABLE;
+
 }
 
 void cond_broadcast(cond_t *c) {
