@@ -240,40 +240,42 @@ void *thread_join(int tid) {
     return ret;
 }
 
-/* MUTEX IMPLEMENTATION */
+/* Wait queue helpers (generalized for all structures) */
+static void wait_q_enqueue(wait_q_t *q, struct thread *t) {
+    t->qnext = 0;
 
-void mutex_init(mutex_t *m) {
-    m->locked = 0;
-    m->qhead = 0;
-    m->qtail = 0;
-    m->owner = 0;
+    if (q->qtail) {
+        q->qtail->qnext = t;
+        q->qtail = t;
+    } else {
+        q->qhead = q->qtail = t;
+    }
 }
 
-static struct thread* m_wait_q_dequeue(mutex_t *m) {
-    struct thread *t = m->qhead;
+static struct thread* wait_q_dequeue(wait_q_t *q) {
+    struct thread *t = q->qhead;
 
     if (!t) {
         return 0;
     }
 
-    m->qhead = t->qnext;
+    q->qhead = t->qnext;
 
-    if (m->qhead == 0)
-        m->qtail = 0;
+    if (q->qhead == 0) {
+        q->qtail = 0;
+    }
 
     t->qnext = 0;
     return t;
 }
 
-static void m_wait_q_enqueue(mutex_t *m, struct thread *t) {
-    t->qnext = 0;
+/* MUTEX IMPLEMENTATION */
 
-    if (m->qtail) {
-        m->qtail->qnext = t;
-        m->qtail = t;
-    } else {
-        m->qhead = m->qtail = t;
-    }
+void mutex_init(mutex_t *m) {
+    m->locked = 0;
+    m->q.qhead = 0;
+    m->q.qtail = 0;
+    m->owner = 0;
 }
 
 void mutex_lock(mutex_t *m) {
@@ -286,7 +288,7 @@ void mutex_lock(mutex_t *m) {
     // similar idea to join; if it's locked, enqueue it, put it
     // to sleep, and run the scheduler
     while (m->locked && m->owner != current_thread) {
-        m_wait_q_enqueue(m, current_thread);
+        wait_q_enqueue(&m->q, current_thread);
         current_thread->tstate = T_SLEEPING;
         thread_schedule();
     }
@@ -310,7 +312,8 @@ void mutex_unlock(mutex_t *m) {
         exit();
     }
 
-    struct thread *waiter = m_wait_q_dequeue(m);
+    struct thread *waiter = wait_q_dequeue(&m->q);
+
     if (!waiter) {
         m->locked = 0;
         m->owner = 0;
@@ -331,44 +334,15 @@ void sem_init(sem_t *s, int value) {
         exit();
     }
     s->count = value;
-    s->qhead = 0;
-    s->qtail = 0;
-}
-
-// DRY this possibly? Create a DEQUE struct 
-
-static struct thread* s_wait_q_dequeue(sem_t *s) {
-    struct thread *t = s->qhead;
-
-    if (!t) {
-        return 0;
-    }
-
-    s->qhead = t->qnext;
-
-    if (s->qhead == 0)
-        s->qtail = 0;
-
-    t->qnext = 0;
-    return t;
-}
-
-static void s_wait_q_enqueue(sem_t *s, struct thread *t) {
-    t->qnext = 0;
-
-    if (s->qtail) {
-        s->qtail->qnext = t;
-        s->qtail = t;
-    } else {
-        s->qhead = s->qtail = t;
-    }
+    s->q.qhead = 0;
+    s->q.qtail = 0;
 }
 
 void sem_wait(sem_t *s) {
     s->count--;
 
     if (s->count < 0) {
-        s_wait_q_enqueue(s, current_thread);
+        wait_q_enqueue(&s->q, current_thread);
         current_thread->tstate = T_SLEEPING;
         thread_schedule();
     }
@@ -376,7 +350,7 @@ void sem_wait(sem_t *s) {
 
 void sem_post(sem_t *s) {
     if (s->count++ < 0) {
-        struct thread *t = s_wait_q_dequeue(s);
+        struct thread *t = wait_q_dequeue(&s->q);
         if (t) {
             t->tstate = T_RUNNABLE;
         }
