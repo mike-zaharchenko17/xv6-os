@@ -145,14 +145,20 @@ void thread_yield(void);
 
 /****** SYNC PRIMITIVES *****/
 
+/*** WAIT QUEUE GENERIC ***/
+
+typedef struct wait_q {
+    struct thread *qhead;
+    struct thread *qtail;
+} wait_q_t;
+
 /*** MUTEX ***/
 
 typedef struct mutex {
     // 1: locked, 0: unlocked
     int locked;
     // since threads have a qnext attribute, we can just keep track of the head
-    struct thread *qhead; 
-    struct thread *qtail;
+    wait_q_t q;
     struct thread *owner;
 } mutex_t;
 
@@ -208,8 +214,7 @@ void mutex_unlock(mutex_t *m);
 
 typedef struct sem {
     int count;
-    struct thread *qhead;
-    struct thread *qtail;
+    wait_q_t q;
 } sem_t;
 
 
