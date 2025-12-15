@@ -374,7 +374,9 @@ void cond_wait(cond_t *c, mutex_t *m) {
 
     // it can't be preempted since it's a cooperative model, so this section
     // should be 'atomic' even if there are no explicit guards in place to make it so.
-    // no yields are being called in auxillary functions
+    
+    // thread_yield and/or thread_schedule are being not called in auxillary 
+    // functions such as mutex_unlock
     mutex_unlock(m);
 
     current_thread->tstate = T_SLEEPING;
@@ -399,7 +401,6 @@ void cond_wait(cond_t *c, mutex_t *m) {
     we need to check that when the thread is signalled and wakes back up
 
     a wakeup does not guarantee that the condition is met
-
     */
     mutex_lock(m);
 
@@ -409,7 +410,6 @@ void cond_wait(cond_t *c, mutex_t *m) {
 void cond_signal(cond_t *c) {
     struct thread *waiter = wait_q_dequeue(&c->q);
     if (waiter) waiter->tstate = T_RUNNABLE;
-
 }
 
 void cond_broadcast(cond_t *c) {
