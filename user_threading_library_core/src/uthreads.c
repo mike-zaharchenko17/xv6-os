@@ -356,3 +356,21 @@ void sem_post(sem_t *s) {
         }
     }
 }
+
+/* CONDITION VARIABLE IMPLEMENTATION */
+
+void cond_init(cond_t *c) {
+    printf(1, "stub for cond_init");
+}
+
+void cond_wait(cond_t *c, mutex_t *m) {
+    printf(1, "stub for cond_wait");
+}
+
+void cond_signal(cond_t *c) {
+    printf(1, "stub for cond_signal");
+}
+
+void cond_broadcast(cond_t *c) {
+    printf(1, "stub for cond_broadcast");
+}

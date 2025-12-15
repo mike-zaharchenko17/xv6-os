@@ -257,7 +257,73 @@ Must do:
 
 void sem_post(sem_t *s);
 
+/*** CONDITION VARIABLES ***/
 
+typedef struct cond {
+    wait_q_t q;
+} cond_t;
 
+/*
 
+cond_init
 
+Overview: Initializes a cond_t structure before its first use.
+
+*/
+
+void cond_init(cond_t *c);
+
+/*
+
+cond_wait
+
+Overview: Waits for a condition; must be called while mutex_t is locked
+
+Must do:
+1.  Add the current thread to the condition var's wait q
+2.  Release the mutex by calling mutex_unlock
+3.  Set the current thread's state to T_SLEEPING
+4.  Call thread_schedule() to run another thread
+5.  Upon waking up (after being signaled), it must reacquire the mutex m
+    by calling mutex_lock before it can return
+
+Critical: The act of releasing the mutex and going to 
+sleep must be atomic from the programmer's perspective.
+In your cooperative model, you must ensure that no other 
+thread can run between the mutex_unlock call and the 
+thread_schedule call.
+
+*/
+
+void cond_wait(cond_t *c, mutex_t *m);
+
+/*
+
+cond_signal
+
+Overview: wakes up one waiting thread
+
+Must do:
+1.  If any threads are waiting in the cond_t's queue
+    a) remove one
+    b) set its state to T_RUNNABLE
+2.  Else
+    a) do nothing
+
+*/
+void cond_signal(cond_t *c);
+
+/*
+
+cond_broadcast
+
+Overview: Wakes up all waiting threads
+
+Must do:
+1.  iterate through all threads in the cond_t's queue; for each:
+    a) remove thread
+    b) set thread's state to T_RUNNABLE
+
+*/
+
+void cond_broadcast(cond_t *c);
