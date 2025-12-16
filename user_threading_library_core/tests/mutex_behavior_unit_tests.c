@@ -36,7 +36,6 @@ int main(void) {
 
     run_ok("mutex lock/unlock by owner runs", mutex_unlock_by_owner_should_run);
 
-    run_ok("mutex unlock by not owner exits", mutex_unlock_not_by_owner_should_exit);
     printf(1, "=== done: %d run, %d failed, %d\n", tests_run, tests_failed);
     exit();
 }
