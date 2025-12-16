@@ -2,7 +2,20 @@
 
 static sem_t s;
 
-/* basic semaphore test */
+/* 
+
+basic semaphore test 
+
+this is a deterministic order / sequencing with two threads test
+
+it is modified from our original test, which had an expecteed order of:
+
+waiter: before wait
+main: posting
+waiter: after wait
+semaphore_basic_test: PASS
+
+*/
 
 static char buf[5];
 
@@ -41,8 +54,7 @@ static void semaphore_basic_test_ok(void) {
     printf(1, "buf: %s\n", buf);   // expect "ab?d" unless you set buf[2]
     // If you set buf[2]='c', expect: "abc d" pattern => "abcd" if you fill [2]
     if (buf[0] != 'a' || buf[1] != 'b' || buf[2] != 'c' || buf[3] != 'd') {
-        printf(1, "[FAIL] semaphore_basic_test_ok: got %c%c%c%c\n",
-               buf[0], buf[1], buf[2], buf[3]);
+        printf(1, "[FAIL] semaphore_basic_test_ok: got %c%c%c%c\n", buf[0], buf[1], buf[2], buf[3]);
         exit();
     }
 }
