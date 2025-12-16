@@ -7,13 +7,14 @@ int tests_run = 0;
 int tests_failed = 0;
 
 void run_ok(const char *name, void (*fn)(void)) {
+    printf(1, "[BEGIN] %s\n", name);
     tests_run++;
 
     // create child
     int pid = fork();
 
     if (pid < 0) {
-        printf(1, "[FAIL] %s (fork failed)", name);
+        printf(1, "[FAIL] %s (fork failed)\n", name);
         tests_failed++;
         return;
     }
@@ -29,6 +30,7 @@ void run_ok(const char *name, void (*fn)(void)) {
 }
 
 void run_expect_exit(const char *name, void (*fn)(void)) {
+    printf(1, "[BEGIN] %s\n", name);
     tests_run++;
 
     int pid = fork();
