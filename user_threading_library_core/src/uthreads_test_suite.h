@@ -2,6 +2,9 @@
 #include "user.h"
 #include "uthreads.h"
 
+extern int tests_run;
+extern int tests_failed;
+
 // run a test in a child process; expect success, exit if fail
 
 void run_ok(const char *name, void (*fn)(void));

@@ -3,9 +3,8 @@
 #include "user.h"
 #include "uthreads.h"
 
-static int tests_run = 0;
-static int tests_failed = 0;
-static int tests_passed = 0;
+int tests_run = 0;
+int tests_failed = 0;
 
 void run_ok(const char *name, void (*fn)(void)) {
     tests_run++;
@@ -22,10 +21,9 @@ void run_ok(const char *name, void (*fn)(void)) {
     if (pid == 0) {
         fn();
         printf(1, "[PASS] %s\n", name);
-        tests_passed++;
         exit();
     }
-
+    
     // reap
     wait();
 }
@@ -53,8 +51,6 @@ void run_expect_exit(const char *name, void (*fn)(void)) {
     // since misuse paths call exit(), termination is the expected outcome.
 
     wait(); 
-
-    tests_passed++;
 
     printf(1, "[PASS] %s (terminated as expected)\n", name);
 }
