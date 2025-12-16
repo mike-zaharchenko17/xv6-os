@@ -33,8 +33,6 @@ static void mutex_unlock_by_owner_should_run(void) {
 static volatile int counter = 0;
 
 static void *counter_worker(void *arg) {
-    int id = (int) arg;
-
     for (int i = 0; i < 1000; i++) {
         mutex_lock(&m);
 
@@ -51,6 +49,7 @@ static void *counter_worker(void *arg) {
         if ((i % 50) == 0)
             thread_yield();
     }
+
     return 0;
 }
 
@@ -76,6 +75,50 @@ static void mutex_protects_counter_ok(void) {
     }
 }
 
+static void *counter_worker_no_mutex(void *arg) {
+    for (int i = 0; i < 1000; i++) {
+        // begin critical section (unprotected)
+        int tmp = counter;
+        // force a context switch while holding lock
+        thread_yield();
+        counter = tmp + 1;
+        // end unprotected critical section
+
+        // optional: encourage mixing
+        if ((i % 50) == 0)
+            thread_yield();
+    }
+    
+    return 0;
+}
+
+static void unprotected_counter_test_fails(void) {
+    thread_init();
+    mutex_init(&m);
+
+    int expected = 4000;
+    counter = 0;
+
+    int t1 = thread_create(counter_worker_no_mutex, 0);
+    int t2 = thread_create(counter_worker_no_mutex, 0);
+    int t3 = thread_create(counter_worker_no_mutex, 0);
+    int t4 = thread_create(counter_worker_no_mutex, 0);
+
+    thread_join(t1);
+    thread_join(t2);
+    thread_join(t3);
+    thread_join(t4);
+
+    if (counter != 4 * 1000) {
+        printf(1, "[PASS] mutex counter wrong (expected: %d, actual: %d)\n", expected, counter);
+    } else {
+        printf(1, "[FAIL] mutex counter correct");
+    }
+
+    exit();
+}
+
+
 int main(void) {
     printf(1, "=== mutex suite ====\n");
 
@@ -85,9 +128,12 @@ int main(void) {
 
     run_ok("mutex lock/unlock by owner runs", mutex_unlock_by_owner_should_run);
 
-    run_ok("mutex_protects_counter_ok", mutex_protects_counter_ok);
+    run_ok("mutex correctly protects counter", mutex_protects_counter_ok);
 
-    printf(1, "=== done: %d run, %d failed, %d\n", tests_run, tests_failed);
+    // run ok because you're not gonna get kicked out
+    run_ok("counter test fails without mutex", unprotected_counter_test_fails);
+
+    printf(1, "=== done: %d run, %d failed\n", tests_run, tests_failed);
     exit();
 }
 
