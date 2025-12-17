@@ -419,3 +419,100 @@ void cond_broadcast(cond_t *c) {
         waiter->tstate = T_RUNNABLE;
     }
 }
+
+/* CHANNEL IMPLEMENTATION */
+
+channel_t* channel_create(int capacity) {
+    if (capacity <= 0) {
+        return 0;
+    }
+
+    channel_t *ch = (channel_t *)malloc(sizeof(channel_t));
+    if (!ch) {
+        return 0;
+    }
+
+    ch->buf = (void **)malloc(sizeof(void *) * capacity);
+    if (!ch->buf) {
+        free(ch);
+        return 0;
+    }
+
+    ch->capacity = capacity;
+    ch->count = 0;
+    ch->head = 0;
+    ch->tail = 0;
+    ch->closed = 0;
+
+    mutex_init(&ch->lock);
+    cond_init(&ch->not_empty);
+    cond_init(&ch->not_full);
+
+    return ch;
+}
+
+int channel_send(channel_t *ch, void *data) {
+    if (!ch) {
+        return -1;
+    }
+
+    mutex_lock(&ch->lock);
+
+    while (!ch->closed && ch->count == ch->capacity) {
+        cond_wait(&ch->not_full, &ch->lock);
+    }
+
+    if (ch->closed) {
+        mutex_unlock(&ch->lock);
+        return -1;
+    }
+
+    ch->buf[ch->tail] = data;
+    ch->tail = (ch->tail + 1) % ch->capacity;
+    ch->count++;
+
+    cond_signal(&ch->not_empty);
+    mutex_unlock(&ch->lock);
+
+    return 0;
+}
+
+int channel_recv(channel_t *ch, void **data) {
+    if (!ch || !data) {
+        return -1;
+    }
+
+    mutex_lock(&ch->lock);
+
+    while (ch->count == 0 && !ch->closed) {
+        cond_wait(&ch->not_empty, &ch->lock);
+    }
+
+    if (ch->count == 0 && ch->closed) {
+        mutex_unlock(&ch->lock);
+        return -1;
+    }
+
+    *data = ch->buf[ch->head];
+    ch->head = (ch->head + 1) % ch->capacity;
+    ch->count--;
+
+    cond_signal(&ch->not_full);
+    mutex_unlock(&ch->lock);
+
+    return 0;
+}
+
+void channel_close(channel_t *ch) {
+    if (!ch) {
+        return;
+    }
+
+    mutex_lock(&ch->lock);
+    ch->closed = 1;
+
+    cond_broadcast(&ch->not_full);
+    cond_broadcast(&ch->not_empty);
+
+    mutex_unlock(&ch->lock);
+}

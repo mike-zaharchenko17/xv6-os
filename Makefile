@@ -192,9 +192,14 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_t_cond_var_producer_consumer_test\
+	_t_cond_var_broadcast_test\
 	_t_mutex_unit_tests\
 	_t_semaphore_unit_tests\
 	_t_thread_unit_tests\
+	_t_channel_tests\
+	_t_pc_sem_test\
+	_t_pc_chan_test\
+	_t_rw_lock_test\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
