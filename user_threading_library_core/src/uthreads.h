@@ -327,3 +327,57 @@ Must do:
 */
 
 void cond_broadcast(cond_t *c);
+
+/*** CHANNELS ***/
+
+typedef struct channel {
+    mutex_t lock;
+    cond_t not_empty;
+    cond_t not_full;
+    void **buf;
+    int capacity;
+    int count;
+    int head;
+    int tail;
+    int closed;
+} channel_t;
+
+/*
+
+channel_create
+
+Overview: Allocates and initializes a bounded buffer channel.
+
+*/
+channel_t* channel_create(int capacity);
+
+/*
+
+channel_send
+
+Overview: Sends a data pointer through the channel. Blocks if the channel is full.
+
+Returns 0 on success, -1 if the channel is closed or invalid.
+
+*/
+int channel_send(channel_t *ch, void *data);
+
+/*
+
+channel_recv
+
+Overview: Receives a data pointer from the channel. Blocks if the channel is empty.
+
+Returns 0 on success, -1 if the channel is closed and empty or if input is invalid.
+
+*/
+int channel_recv(channel_t *ch, void **data);
+
+/*
+
+channel_close
+
+Overview: Closes the channel and wakes all blocked senders/receivers.
+
+*/
+void channel_close(channel_t *ch);
