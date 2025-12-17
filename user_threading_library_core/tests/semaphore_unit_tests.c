@@ -2,6 +2,12 @@
 
 static sem_t s;
 
+/* execution paths */
+
+static void sem_init_should_fail_w_neg(void) {
+    sem_init(&s, -1); // expect exit
+}
+
 /* 
 
 basic semaphore test 
@@ -117,6 +123,8 @@ static void semaphore_fifo_test_ok() {
 
 int main(void) {
     printf(1, "=== semaphore suite ====\n");
+
+    run_expect_exit("semaphore init negative", sem_init_should_fail_w_neg);
 
     run_ok("semaphore basic test: correctly modifies buffer", semaphore_basic_test_ok);
 
