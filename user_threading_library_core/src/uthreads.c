@@ -393,8 +393,8 @@ void cond_init(cond_t *c) {
 
 void cond_wait(cond_t *c, mutex_t *m) {
   if (m->owner != current_thread || m->locked != 1) {
-    printf(1, "cond_wait: must be called while mutex is locked");
-    return;
+    printf(1, "cond_wait: must be called while mutex is locked\n");
+    exit();
   }
 
   wait_q_enqueue(&c->q, current_thread);
