@@ -55,7 +55,6 @@ thread_init
 Overview:
 Initializes the threading system. This must be the first function a user calls.
 
-Must do:
 1.  Initialize global state (particularly the thread table)
 2.  Account for the fact that the main program is already running and
     must be set up as the first thread (thread 0) in the T_RUNNING state
@@ -72,7 +71,6 @@ Overview:
 Creates a new thread that will execute the start_routine function,
 passing arg as its only parameter.
 
-Must do:
 1.  Find an unused thread slot
 2.  Set its state to T_RUNNABLE
 3.  Initialize its stack
@@ -92,7 +90,6 @@ thread_join
 Overview:
 Waits for the thread specified by tid to terminate.
 
-Must do:
 1.  If the target trhread is not yet finished, the calling thread must block
     until the target thread exits
         a) i.e., set its own state to T_SLEEPING until target thread exits
@@ -110,7 +107,7 @@ thread_exit
 Overview:
 Terminates the currently running thread.
 
-Must do:
+
 1.  Save the retval so it can be collected by a joining thread
 2.  Set the thread's state to T_ZOMBIE and wake up any other thread that
     may be thread_join-ing on it (by setting that thread's state to T_RUNNABLE)
@@ -138,7 +135,6 @@ thread_yield
 Overview:
 Voluntarily gives up the CPU to allow other threads to run
 
-Must do:
 1.  The current thread should be marked as T_RUNNABLE and the scheduler should
     be called to select a new thread to run
 
@@ -170,7 +166,7 @@ typedef struct mutex {
 mutex_init
 
 Overview: initializes a mutex_t struct before its first use
-Must do: set mutex's internal state to "unlocked"
+ set mutex's internal state to "unlocked"
 
 */
 
@@ -182,7 +178,6 @@ mutex lock
 
 Overview: acquires the mutex for the currently-running thread
 
-Must do:
 
 1.  if mutex is unlocked, the function should mark it as "locked" and return
 immediately a)  it should also track the owner
@@ -202,7 +197,6 @@ mutex_unlock
 
 Overview: releases the mutex held by the currently-running thread
 
-Must do:
 
 1.  First, verify that the currently running thread is the one that holds the
 lock
@@ -238,7 +232,7 @@ sem_wait
 
 Overview: decrements the count; if count becomes negative, block.
 
-Must do:
+
 1.  Decrement the count
 2.  If count is now negative, add current thread to wait queue, set state to
 T_SLEEPING, and call thread_schedule()
@@ -253,7 +247,6 @@ sem_post
 
 Overview: Increments the count. If threads are waiting, wake one.
 
-Must do:
 1.  Increment the count
 2.  If count was negative (i.e., threads were waiting), remove one
     thread from the wait queue and set its state to T_RUNNABLE
@@ -284,7 +277,6 @@ cond_wait
 
 Overview: Waits for a condition; must be called while mutex_t is locked
 
-Must do:
 1.  Add the current thread to the condition var's wait q
 2.  Release the mutex by calling mutex_unlock
 3.  Set the current thread's state to T_SLEEPING
@@ -308,7 +300,7 @@ cond_signal
 
 Overview: wakes up one waiting thread
 
-Must do:
+
 1.  If any threads are waiting in the cond_t's queue
     a) remove one
     b) set its state to T_RUNNABLE
@@ -324,7 +316,7 @@ cond_broadcast
 
 Overview: Wakes up all waiting threads
 
-Must do:
+
 1.  iterate through all threads in the cond_t's queue; for each:
     a) remove thread
     b) set thread's state to T_RUNNABLE
