@@ -37,3 +37,27 @@ Exit xv6 with `Ctrl-a x`.
 - All user tests are statically linked and copied into `fs.img` by `make fs.img`; no extra compile steps are needed beyond `make fs.img`.
 - If you add or modify tests, rerun `make fs.img` before booting xv6 to ensure the new binaries are on the disk image.
 - Use `ls` inside xv6 to see the truncated names if you forget them. ***
+
+
+# Questions to Conider. 
+- How will you coordinate when all producers have finished?
+> Coordinate end-of-production by counting finished producers under the buffer mutex; the last producer injects one sentinel item per consumer (see user_threading_library_core/tests/pc_sem_test.c).
+- How will consumers know there's no more work?
+> Consumers detect no more work by dequeuing the sentinel; each consumer re-enqueues the sentinel for others, then exits.
+- What should each semaphore be initialized to?
+> Semaphore init: empty_slots starts at buffer capacity (all slots free), full_slots starts at 0 (no items yet).
+
+
+
+
+- How do you prevent new readers from starting when a writer is waiting? 
+>Block new readers when any writer is waiting or active: gate reader_lock on (writer_active || writers_waiting > 0) so arriving readers cond_wait instead of starving writers (user_threading_library_core/tests/rw_lock_test.c).
+- When should you wake up waiting readers vs. waiting writers? 
+>Wake choice: on writer_unlock, if writers_waiting > 0 signal a writer; otherwise broadcast to all readers. On reader_unlock, if this was the last reader and writers are waiting, signal a writer.
+- What happens if multiple writers are waiting? 
+>Multiple waiting writers: track writers_waiting; each release signals one writer, which decrements the count and marks writer_active, serializing writers while preventing reader starvation.
+Last-reader handoff: in reader_unlock, when readers_active drops to 0 and writers_waiting > 0, signal writers_ok so a queued writer runs next.
+- How do you ensure the last reader wakes up a waiting writer?
+>Last-reader handoff: in reader_unlock, when readers_active drops to 0 and writers_waiting > 0, signal writers_ok so a queued writer runs next.
+
+
