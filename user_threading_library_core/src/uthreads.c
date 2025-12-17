@@ -330,7 +330,7 @@ void mutex_unlock(mutex_t *m) {
 
 void sem_init(sem_t *s, int value) {
     if (value < 0) {
-        printf(1, "sem_init: value must be >= 0");
+        printf(1, "sem_init: value must be >= 0\n");
         exit();
     }
     s->count = value;

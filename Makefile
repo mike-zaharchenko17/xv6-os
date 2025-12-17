@@ -146,7 +146,7 @@ vectors.S: vectors.pl
 
 ULIB = ulib.o usys.o printf.o umalloc.o
 
-UTHREAD_LIB = user_threading_library_core/src/uthreads.o user_threading_library_core/src/thread_switch.o
+UTHREAD_LIB = user_threading_library_core/src/uthreads.o user_threading_library_core/src/thread_switch.o user_threading_library_core/src/uthreads_test_suite.o
 
 vpath %.c user_threading_library_core/tests user_threading_library_core/examples .
 
@@ -191,15 +191,10 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
-	_t_thread_init_test\
-	_t_thread_schedule_test_empty\
-	_t_thread_create_test\
-	_t_thread_join_test\
-	_t_mutex_test_counter\
-	_t_no_mutex_race_test\
-	_t_semaphore_basic_test\
-	_t_semaphore_count_fifo_test\
 	_t_cond_var_producer_consumer_test\
+	_t_mutex_unit_tests\
+	_t_semaphore_unit_tests\
+	_t_thread_unit_tests\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
