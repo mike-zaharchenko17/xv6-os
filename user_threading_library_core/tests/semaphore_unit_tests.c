@@ -65,6 +65,54 @@ static void semaphore_basic_test_ok(void) {
     }
 }
 
+/* semaphore counting test */
+
+// how many workers have passed sem_wait()
+static volatile int passed = 0;
+
+static void *sct_worker(void *arg) {
+    sem_wait(&s);
+    passed++;
+    return 0;
+}
+
+static void semaphore_counting_test_ok(void) {
+    thread_init();
+    sem_init(&s, 2);
+    passed = 0;
+
+    int t1 = thread_create(sct_worker, 0);
+    int t2 = thread_create(sct_worker, 0);
+    int t3 = thread_create(sct_worker, 0);
+
+    // let threads run. with count=2, at most 2 should pass.
+    thread_yield();
+    thread_yield();
+    thread_yield();
+
+    printf(1, "passed after initial yields: %d (expected 2)\n", passed);
+    if (passed != 2) {
+        printf(1, "[FAIL] expected exactly 2 to pass before post\n");
+        exit();
+    }
+
+    // release exactly one more
+    sem_post(&s);
+
+    thread_yield();
+    thread_yield();
+
+    printf(1, "passed after one post: %d (expected 3)\n", passed);
+    if (passed != 3) {
+        printf(1, "[FAIL] expected third to pass after post\n");
+        exit();
+    }
+
+    thread_join(t1);
+    thread_join(t2);
+    thread_join(t3);
+}
+
 /* semaphore count fifo test */
 
 static volatile int order[3];
@@ -127,6 +175,8 @@ int main(void) {
     run_expect_exit("semaphore init negative", sem_init_should_fail_w_neg);
 
     run_ok("semaphore basic test: correctly modifies buffer", semaphore_basic_test_ok);
+
+    run_ok("semaphore counting test", semaphore_counting_test_ok);
 
     run_ok("semaphore fifo test: correctly orders buffer modifications", semaphore_fifo_test_ok);
 
