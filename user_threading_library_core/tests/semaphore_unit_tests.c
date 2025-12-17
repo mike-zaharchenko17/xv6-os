@@ -8,6 +8,32 @@ static void sem_init_should_fail_w_neg(void) {
     sem_init(&s, -1); // expect exit
 }
 
+static void sem_wait_does_nothing_w_pos(void) {
+    sem_init(&s, 1);
+    if (s.q.qhead != 0) {
+        printf(1, "[FAIL] qhead is not empty after init");
+        exit();
+    }
+    sem_wait(&s);
+    if (s.q.qhead != 0) {
+        printf(1, "[FAIL] qhead is not empty after sem_wait; sem_wait did not do nothing");
+        exit();
+    }
+}
+
+static void sem_post_does_nothing_w_pos(void) {
+    sem_init(&s, 1);
+        if (s.q.qhead != 0) {
+        printf(1, "[FAIL] qhead is not empty after init");
+        exit();
+    }
+    sem_post(&s);
+    if (s.q.qhead != 0) {
+        printf(1, "[FAIL] qhead is not empty after sem_wait; sem_wait did not do nothing");
+        exit();
+    }
+}
+
 /* 
 
 basic semaphore test 
@@ -172,7 +198,11 @@ static void semaphore_fifo_test_ok() {
 int main(void) {
     printf(1, "=== semaphore suite ====\n");
 
-    run_expect_exit("semaphore init negative", sem_init_should_fail_w_neg);
+    run_expect_exit("sem_init negative", sem_init_should_fail_w_neg);
+
+    run_ok("sem_wait does nothing w positive count", sem_wait_does_nothing_w_pos);
+
+    run_ok("sem_post does nothing w positive count", sem_post_does_nothing_w_pos);
 
     run_ok("semaphore basic test: correctly modifies buffer", semaphore_basic_test_ok);
 
