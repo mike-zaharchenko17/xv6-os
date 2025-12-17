@@ -6,41 +6,44 @@
 enum threadstate { T_UNUSED, T_RUNNABLE, T_RUNNING, T_SLEEPING, T_ZOMBIE };
 
 // thread structure
+// This structure represents the Thread Control Block (TCB).
 
 /*
 invariants:
 
 - Exactly one thread is T_RUNNING at a time
-- A thread in T_ZOMVIE keeps its retval until join consumes it,
+- A thread in T_ZOMBIE keeps its retval until join consumes it,
   then slot becomes T_UNUSED
 
 */
 struct thread {
-    uint sp; // stack ptr
-    int tid;
-    enum threadstate tstate;
+  uint sp; // stack ptr - Saved Stack Pointer. Crucial for context switching.
+  int tid;
+  enum threadstate tstate;
 
-    char *stack; // base of stack
+  char *stack; // base of stack - Pointer to the allocated stack memory
 
-    // so the thread knows what to run
-    void *(*start_routine)(void *);
-    void *arg;
+  // so the thread knows what to run
+  void *(*start_routine)(
+      void *); // Function pointer to the thread's main function
+  void *arg;   // Argument to be passed to the start_routine
 
-    // return value for join
-    void *retval;
+  // return value for join
+  void *retval; // Stores the exit status/return value of the thread
 
-    int joiner_tid; //-1 if none
+  int joiner_tid; //-1 if none. The TID of the thread waiting for this thread to
+                  //exit.
 
-    struct thread *qnext;
+  struct thread *qnext; // Next pointer for linked lists (used in wait queues)
 };
 
-// thread table
+// thread table - Global array storing all threads
 extern struct thread threads[MAX_THREADS];
 
-// current thread ptr
+// current thread ptr - Pointer to the TCB of the currently executing thread
 extern struct thread *current_thread;
 
-// for allocating TIDs
+// for allocating TIDs - Global counter for generating unique Thread IDs
 extern int next_tid;
 
 // API methods
@@ -65,8 +68,8 @@ void thread_init(void);
 
 thread_create
 
-Overview: 
-Creates a new thread that will execute the start_routine function, 
+Overview:
+Creates a new thread that will execute the start_routine function,
 passing arg as its only parameter.
 
 Must do:
@@ -74,9 +77,9 @@ Must do:
 2.  Set its state to T_RUNNABLE
 3.  Initialize its stack
 
-The stack setup must ensure that when the scheduler first switches to 
-this thread, it begins by calling the start_routine function with its 
-argument, and when that function returns, the thread automatically 
+The stack setup must ensure that when the scheduler first switches to
+this thread, it begins by calling the start_routine function with its
+argument, and when that function returns, the thread automatically
 calls thread_exit() with the return value.
 
 */
@@ -136,8 +139,8 @@ Overview:
 Voluntarily gives up the CPU to allow other threads to run
 
 Must do:
-The current thread should be marked as T_RUNNABLE and the scheduler should
-be called to select a new thread to run
+1.  The current thread should be marked as T_RUNNABLE and the scheduler should
+    be called to select a new thread to run
 
 */
 
@@ -148,18 +151,18 @@ void thread_yield(void);
 /*** WAIT QUEUE GENERIC ***/
 
 typedef struct wait_q {
-    struct thread *qhead;
-    struct thread *qtail;
+  struct thread *qhead;
+  struct thread *qtail;
 } wait_q_t;
 
 /*** MUTEX ***/
 
 typedef struct mutex {
-    // 1: locked, 0: unlocked
-    int locked;
-    // since threads have a qnext attribute, we can just keep track of the head
-    wait_q_t q;
-    struct thread *owner;
+  // 1: locked, 0: unlocked
+  int locked;
+  // since threads have a qnext attribute, we can just keep track of the head
+  wait_q_t q;           // Queue of threads waiting for this mutex
+  struct thread *owner; // Pointer to the thread holding the lock
 } mutex_t;
 
 /*
@@ -181,12 +184,13 @@ Overview: acquires the mutex for the currently-running thread
 
 Must do:
 
-1.  if mutex is unlocked, the function should mark it as "locked" and return immediately
-    a)  it should also track the owner
+1.  if mutex is unlocked, the function should mark it as "locked" and return
+immediately a)  it should also track the owner
 
 2.  if the mutex is already locked by another thread, the function must "block"
-    a)  in other words, it must set the current thread's state to T_SLEEPING, add it to the mutex's
-        wait queue, and call thread_schedule() to run another thread
+    a)  in other words, it must set the current thread's state to T_SLEEPING,
+add it to the mutex's wait queue, and call thread_schedule() to run another
+thread
 
 */
 
@@ -200,11 +204,12 @@ Overview: releases the mutex held by the currently-running thread
 
 Must do:
 
-1.  First, verify that the currently running thread is the one that holds the lock
+1.  First, verify that the currently running thread is the one that holds the
+lock
 2.  Then, check if any other threads are waiting in its queue
 3.  If no threads are waiting, it simply marks the mutex as "unlocked"
-4.  IF threads ARE waiting, it must wake one of them up by removing it from the wait queue
-    and setting its state to T_RUNNABLE
+4.  IF threads ARE waiting, it must wake one of them up by removing it from the
+wait queue and setting its state to T_RUNNABLE
 
 */
 
@@ -213,10 +218,9 @@ void mutex_unlock(mutex_t *m);
 /*** SEMAPHORE ***/
 
 typedef struct sem {
-    int count;
-    wait_q_t q;
+  int count;  // Semaphore value
+  wait_q_t q; // Queue of threads waiting on this semaphore
 } sem_t;
-
 
 /*
 
@@ -236,7 +240,8 @@ Overview: decrements the count; if count becomes negative, block.
 
 Must do:
 1.  Decrement the count
-2.  If count is now negative, add current thread to wait queue, set state to T_SLEEPING, and call thread_schedule()
+2.  If count is now negative, add current thread to wait queue, set state to
+T_SLEEPING, and call thread_schedule()
 
 */
 
@@ -260,7 +265,7 @@ void sem_post(sem_t *s);
 /*** CONDITION VARIABLES ***/
 
 typedef struct cond {
-    wait_q_t q;
+  wait_q_t q; // Queue of threads waiting on this condition variable
 } cond_t;
 
 /*
@@ -287,10 +292,10 @@ Must do:
 5.  Upon waking up (after being signaled), it must reacquire the mutex m
     by calling mutex_lock before it can return
 
-Critical: The act of releasing the mutex and going to 
+Critical: The act of releasing the mutex and going to
 sleep must be atomic from the programmer's perspective.
-In your cooperative model, you must ensure that no other 
-thread can run between the mutex_unlock call and the 
+In your cooperative model, you must ensure that no other
+thread can run between the mutex_unlock call and the
 thread_schedule call.
 
 */
@@ -331,15 +336,15 @@ void cond_broadcast(cond_t *c);
 /*** CHANNELS ***/
 
 typedef struct channel {
-    mutex_t lock;
-    cond_t not_empty;
-    cond_t not_full;
-    void **buf;
-    int capacity;
-    int count;
-    int head;
-    int tail;
-    int closed;
+  mutex_t lock;     // Protects channel state
+  cond_t not_empty; // Signaled when data is added
+  cond_t not_full;  // Signaled when data is removed
+  void **buf;       // Circular buffer (array of pointers)
+  int capacity;     // Max items the channel can hold
+  int count;        // Current number of items
+  int head;         // Read index
+  int tail;         // Write index
+  int closed;       // Flag to indicate if channel is closed
 } channel_t;
 
 /*
@@ -349,13 +354,14 @@ channel_create
 Overview: Allocates and initializes a bounded buffer channel.
 
 */
-channel_t* channel_create(int capacity);
+channel_t *channel_create(int capacity);
 
 /*
 
 channel_send
 
-Overview: Sends a data pointer through the channel. Blocks if the channel is full.
+Overview: Sends a data pointer through the channel. Blocks if the channel is
+full.
 
 Returns 0 on success, -1 if the channel is closed or invalid.
 
@@ -366,9 +372,11 @@ int channel_send(channel_t *ch, void *data);
 
 channel_recv
 
-Overview: Receives a data pointer from the channel. Blocks if the channel is empty.
+Overview: Receives a data pointer from the channel. Blocks if the channel is
+empty.
 
-Returns 0 on success, -1 if the channel is closed and empty or if input is invalid.
+Returns 0 on success, -1 if the channel is closed and empty or if input is
+invalid.
 
 */
 int channel_recv(channel_t *ch, void **data);
