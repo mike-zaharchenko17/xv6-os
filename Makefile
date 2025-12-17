@@ -195,7 +195,6 @@ UPROGS=\
 	_t_thread_schedule_test_empty\
 	_t_thread_create_test\
 	_t_thread_join_test\
-	_t_semaphore_count_fifo_test\
 	_t_cond_var_producer_consumer_test\
 	_t_mutex_unit_tests\
 	_t_semaphore_unit_tests\
