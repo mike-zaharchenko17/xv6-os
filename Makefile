@@ -196,6 +196,7 @@ UPROGS=\
 	_t_thread_unit_tests\
 	_t_channel_tests\
 	_t_cond_var_unit_tests\
+	_t_producer_consumer_problem\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
