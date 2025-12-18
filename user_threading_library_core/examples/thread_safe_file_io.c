@@ -127,7 +127,7 @@ void *consumer_thread(void *arg) {
         struct msg m;
 
         mutex_lock(&read_lock);
-        int r = readn(fds[0], &m, sizeof(m));
+        int r = read_n(fds[0], &m, sizeof(m));
         mutex_unlock(&read_lock);
 
         if (r == 0) {
