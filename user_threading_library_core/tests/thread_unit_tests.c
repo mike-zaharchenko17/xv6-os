@@ -31,7 +31,7 @@ static void thread_init_ok(void) {
         !(threads[i].sp == 0) || !(threads[i].start_routine == 0) ||
         !(threads[i].arg == 0) || !(threads[i].retval == 0) ||
         !(threads[i].joiner_tid == -1) || !(threads[i].qnext == 0)) {
-      printf(1, "[FAIL] unexpected values in thread at idx %d\n", 1);
+      printf(1, "[FAIL] unexpected values in thread at idx %d\n", i);
       exit();
     }
   }
