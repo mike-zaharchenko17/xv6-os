@@ -38,7 +38,7 @@ static int write_n(int fd, const void *buf, int n) {
     return 0;
 }
 
-static int read_n(int fd, const void *buf, int n) {
+static int read_n(int fd, void *buf, int n) {
     int off = 0;
 
     char *p = (char *)buf;
@@ -87,6 +87,7 @@ void *consumer_thread(void *arg) {
         thread_yield();
     }
 
+    return 0;
 }
 
 void consumer_process(void) {
@@ -131,7 +132,7 @@ void *producer_thread(void* arg) {
     for (int i = 0; i < PER_PROD; i++) {
         struct msg m;
         m.prod_id = pid;
-        m.item = 1;
+        m.item = i;
 
         mutex_lock(&write_lock);
 
