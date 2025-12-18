@@ -21,7 +21,7 @@ static int total_consumed = 0;
 struct msg {
     int prod_id;
     int item;
-}
+};
 
 static int write_n(int fd, const void *buf, int n) {
     int off = 0;
@@ -53,8 +53,40 @@ static int read_n(int fd, const void *buf, int n) {
             // EOF
             return 0;
         }
-        off += bytes_read
+        off += bytes_read;
     }
+
+    return 1;
+}
+
+void *consumer_thread(void *arg) {
+    int cid = (int) arg;
+
+    for (;;) {
+        struct msg m;
+
+        mutex_lock(&read_lock);
+        int r = read_n(fds[0], &m, sizeof(m));
+        mutex_unlock(&read_lock);
+
+        if (r == 0) {
+            return 0;
+        }
+
+        if (r < 0) {
+            printf(1, "Consumer %d: read failed\n", cid);
+            exit();
+        }
+
+        printf(1, "Consumer %d: consumed item %d (from Producer %d)\n", cid, m.item, m.prod_id);
+
+        mutex_lock(&count_lock);
+        total_consumed++;
+        mutex_unlock(&count_lock);
+
+        thread_yield();
+    }
+
 }
 
 void consumer_process(void) {
@@ -93,61 +125,31 @@ void consumer_process(void) {
     }
 }
 
-// void *producer_thread(void* arg) {
-//     int pid = (int) arg;
+void *producer_thread(void* arg) {
+    int pid = (int) arg;
 
-//     for (int i = 0; i < PER_PROD; i++) {
-//         struct msg m;
-//         m.prod_id = pid;
-//         m.item = 1;
-
-//         mutex_lock(&write_lock);
-
-//         // write exactly one msg to the write end
-//         if (write_n(fds[1], &m, sizeof(m)) < 0) {
-//             printf(1, "producer %d: write failed\n", pid);
-//             mutex_unlock(&write_lock);
-//             exit();
-//         }
-
-//         printf(1, "Producer %d: produced item %d\n", pid, i);
-
-//         mutex_unlock(&write_lock);
-
-//         thread_yield();
-//     }
-
-//     return 0;
-// }
-
-void *consumer_thread(void *arg) {
-    int cid = (int) arg;
-
-    for (;;) {
+    for (int i = 0; i < PER_PROD; i++) {
         struct msg m;
+        m.prod_id = pid;
+        m.item = 1;
 
-        mutex_lock(&read_lock);
-        int r = read_n(fds[0], &m, sizeof(m));
-        mutex_unlock(&read_lock);
+        mutex_lock(&write_lock);
 
-        if (r == 0) {
-            return 0;
-        }
-
-        if (r < 0) {
-            printf(1, "Consumer %d: read failed\n", cid);
+        // write exactly one msg to the write end
+        if (write_n(fds[1], &m, sizeof(m)) < 0) {
+            printf(1, "producer %d: write failed\n", pid);
+            mutex_unlock(&write_lock);
             exit();
         }
 
-        printf(1, "Consumer %d: consumed item %d (from Producer %d)\n", cid, m.item, m.prod_id);
+        printf(1, "Producer %d: produced item %d\n", pid, i);
 
-        mutex_lock(&count_lock);
-        total_consumed++;
-        mutex_unlock(&count_lock);
+        mutex_unlock(&write_lock);
 
         thread_yield();
     }
 
+    return 0;
 }
 
 void producer_process(void) {
@@ -176,33 +178,6 @@ void producer_process(void) {
 
     close(fds[1]);
     exit();
-}
-
-void *producer_thread(void* arg) {
-    int pid = (int) arg;
-
-    for (int i = 0; i < PER_PROD; i++) {
-        struct msg m;
-        m.prod_id = pid;
-        m.item = 1;
-
-        mutex_lock(&write_lock);
-
-        // write exactly one msg to the write end
-        if (write_n(fds[1], &m, sizeof(m)) < 0) {
-            printf(1, "producer %d: write failed\n", pid);
-            mutex_unlock(&write_lock);
-            exit();
-        }
-
-        printf(1, "Producer %d: produced item %d\n", pid, i);
-
-        mutex_unlock(&write_lock);
-
-        thread_yield();
-    }
-
-    return 0;
 }
 
 int main(void) {
