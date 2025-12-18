@@ -220,6 +220,24 @@ static void thread_slot_reuse_ok(void) {
   }
 }
 
+static void thread_create_limit_ok(void) {
+  thread_init();
+  int tids[MAX_THREADS];
+
+  for (int i = 1; i < MAX_THREADS; i++) {
+    tids[i] = thread_create(join_worker_slow, 0);
+    if (tids[i] < 0) { 
+      printf(1, "[FAIL] early failure at %d\n", i); 
+      exit(); 
+    }
+  }
+
+  int extra = thread_create(join_worker_slow, 0);
+  if (extra != -1) { 
+    printf(1, "[FAIL] expected -1 when full\n");
+    exit(); 
+  }
+}
 
 /*
 thread_schedule_empty_ok
@@ -260,6 +278,8 @@ int main(void) {
   run_ok("thread_create starts from 1 (not 0) and increments", thread_create_unique_tid_ok);
 
   run_ok("threads can reuse slots after join", thread_slot_reuse_ok);
+
+  run_ok("thread_create returns -1 if limit exceeded", thread_create_limit_ok);
 
   run_ok("thread_schedule ok", thread_schedule_empty_ok);
 
