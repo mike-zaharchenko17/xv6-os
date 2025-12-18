@@ -162,6 +162,59 @@ static void thread_invalid_tid_join_fail_ok(void) {
   }
 }
 
+/* thread_join enforce single joiner tests */
+
+static volatile int j1_done = 0;
+static volatile int j2_done = 0;
+static int target_tid = -1;
+
+static void *target_fn(void *arg) {
+  // this will be what joiners want to join
+  thread_yield();
+  thread_yield();
+  return (void*)0x55;
+}
+
+static void *joiner_1(void *arg) {
+  void *r = thread_join(target_tid);
+  if (r == (void*)0x55) {
+    j1_done = 1;
+  }
+  return 0;
+}
+
+static void *joiner_2(void *arg) {
+  void *r = thread_join(target_tid);
+  if (r == 0) {
+    j2_done = 1;
+  }
+  return 0;
+}
+
+static void thread_join_single_joiner_ok(void) {
+  thread_init();
+
+  target_tid = thread_create(target_fn, 0);
+
+  int j1 = thread_create(joiner_1, 0);
+  int j2 = thread_create(joiner_2, 0);
+
+  for (int i = 0; i < 10; i++) {
+    // yielding to let joiners contend
+    thread_yield(); 
+  } 
+
+  thread_join(j1);
+  thread_join(j2);
+
+  // both should finish- "success" is that j1 gets the retval
+  // and j2 gets a zero (failure). If this condition is met, 
+  // then we set both to one, so j1_done + j2_done should == 2
+  if (j1_done + j2_done != 2) {
+    printf(1, "[FAIL] expected one join success and one join failure (got %d)\n");
+  }
+}
+
 /*
 thread_create_unique_tid
 
@@ -316,6 +369,8 @@ int main(void) {
   run_ok("thread_join returns 0 on self join", thread_self_join_fail_ok);
 
   run_ok("thread_join returns 0 on invalid tid join", thread_invalid_tid_join_fail_ok);
+
+  run_ok("thread_join enforces single joiner", thread_join_single_joiner_ok);
 
   run_ok("thread_create starts from 1 (not 0) and increments", thread_create_unique_tid_ok);
 
