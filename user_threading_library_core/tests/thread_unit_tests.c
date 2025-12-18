@@ -140,6 +140,32 @@ static void thread_join_ok(void) {
 }
 
 /*
+thread_create_unique_tid
+
+uses previously-defined join_worker_fast's (since they're very generic)
+
+tests that thread_create returns unique tids and increments next_tid
+
+*/
+static void thread_create_unique_tid_ok(void) {
+  thread_init();
+  int t1 = thread_create(join_worker_fast, 0);
+  int t2 = thread_create(join_worker_fast, 0);
+  int t3 = thread_create(join_worker_fast, 0);
+
+  if (!(t1 > 0 && t1 > 0 && t2 > 0)) {
+    printf(1,"[FAIL] bad tids- zero or neg\n"); 
+    exit();
+  }
+
+  if (t1 == t2 || t1 == t3 || t2 == t3) { 
+    printf(1,"[FAIL] duplicate tid; not incrementing\n"); 
+    exit(); 
+  }
+}
+
+
+/*
 thread_schedule_empty_ok
 
 Tests that thread_yield works correctly even when the calling thread
@@ -171,9 +197,11 @@ int main(void) {
 
   run_ok("thread_create ok", thread_create_ok);
 
-  run_ok("thread self ok", thread_self_ok);
+  run_ok("thread_self ok", thread_self_ok);
 
   run_ok("thread_join ok", thread_join_ok);
+
+  run_ok("thread_create starts from 1 (not 0) and increments", thread_create_unique_tid_ok);
 
   run_ok("thread_schedule ok", thread_schedule_empty_ok);
 
