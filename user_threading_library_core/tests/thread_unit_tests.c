@@ -108,8 +108,9 @@ static void *join_worker_fast(void *arg) { return (void *)0x22222222; }
 /*
 thread_join_ok
 
-Tests the thread joining mechanism (blocking wait).
+Tests the thread joining mechanism (blocking wait). happy path
 */
+
 static void thread_join_ok(void) {
   thread_init();
 
@@ -135,6 +136,28 @@ static void thread_join_ok(void) {
   void *r2 = thread_join(tid2);
   if (r2 != (void *)0x22222222) {
     printf(1, "[FAIL] join_worker_fast: BAD retval %p\n", r2);
+    exit();
+  }
+}
+
+/* thread_join failure path tests */
+
+static void thread_self_join_fail_ok(void) {
+  thread_init();
+  void *r = thread_join(thread_self());
+
+  if (r != 0) {
+    printf(1, "[FAIL]: expected 0 for self-join");
+    exit();
+  }
+}
+
+static void thread_invalid_tid_join_fail_ok(void) {
+  thread_init();
+  void *r = thread_join(9999);
+
+  if (r != 0) {
+    printf(1, "[FAIL]: expected 0 for invalid tid join");
     exit();
   }
 }
@@ -274,6 +297,10 @@ int main(void) {
   run_ok("thread_self ok", thread_self_ok);
 
   run_ok("thread_join ok", thread_join_ok);
+
+  run_ok("thread_join returns 0 on self join", thread_self_join_fail_ok);
+
+  run_ok("thread_join returns 0 on invalid tid join", thread_invalid_tid_join_fail_ok);
 
   run_ok("thread_create starts from 1 (not 0) and increments", thread_create_unique_tid_ok);
 
