@@ -193,6 +193,23 @@ static void thread_slot_reuse_ok(void) {
 
   thread_join(t1);
 
+  if (threads[t1_slot].tstate != T_UNUSED) {
+    printf(1, "[FAIL] slot %d not UNUSED after join\n", t1_slot);
+    exit();
+  }
+  if (threads[t1_slot].tid != -1) {
+    printf(1, "[FAIL] slot %d tid not reset after join\n", t1_slot);
+    exit();
+  }
+  if (threads[t1_slot].stack != 0) {
+    printf(1, "[FAIL] slot %d stack not freed after join\n", t1_slot);
+    exit();
+  }
+  if (threads[t1_slot].sp != 0) {
+    printf(1, "[FAIL] slot %d sp not reset after join\n", t1_slot);
+    exit();
+  }
+
   int t2 = thread_create(join_worker_fast, 0);
 
   int t2_slot = find_slot_idx_by_tid(t2);
