@@ -287,6 +287,21 @@ static void thread_schedule_empty_ok(void) {
   printf(1, "buf: %s\n", buf); // expect "ab?d" unless you set buf[2]
 }
 
+/*
+
+thread_schedule_no_runnable_should_exit
+
+tests that thread_schedule (which is called from thread_exit)
+correctly exits when there are no threads available to run
+
+*/
+static void thread_schedule_no_runnable_should_exit(void) {
+  thread_init();
+  thread_exit(0);
+  printf(1, "[FAIL] schedule returned unexpectedly\n");
+  exit();
+}
+
 int main(void) {
   printf(1, "=== thread suite ====\n");
 
@@ -309,6 +324,8 @@ int main(void) {
   run_ok("thread_create returns -1 if limit exceeded", thread_create_limit_ok);
 
   run_ok("thread_schedule ok", thread_schedule_empty_ok);
+
+  run_expect_exit("thread_schedule exits when no threads available", thread_schedule_no_runnable_should_exit);
 
   printf(1, "=== done: %d run, %d failed\n", tests_run, tests_failed);
   exit();
