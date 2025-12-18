@@ -20,6 +20,7 @@ static void thread_init_ok(void) {
   // Verify the Thread ID (TID) is set to 0
   if (current_thread->tid != 0) {
     printf(1, "[FAIL] current thread tid is incorrect\n");
+    exit();
   }
 
   // Verify that all other thread slots (1 to 31) are cleanly initialized.
@@ -35,6 +36,21 @@ static void thread_init_ok(void) {
     }
   }
 }
+
+/* thread_self_ok */ 
+
+static void thread_self_ok(void) {
+  thread_init();
+
+  current_thread->tid = 1234;
+
+  if (thread_self() != 1234) {
+    printf(1, "[FAIL] thread_self did not produce expected value (expected %d)\n", 1234);
+    exit();
+  }
+}
+
+/* thread_create_ok */
 
 static void *worker1(void *arg) {
   for (int i = 0; i < 3; i++) {
@@ -154,6 +170,8 @@ int main(void) {
   run_ok("thread_init ok", thread_init_ok);
 
   run_ok("thread_create ok", thread_create_ok);
+
+  run_ok("thread self ok", thread_self_ok);
 
   run_ok("thread_join ok", thread_join_ok);
 
