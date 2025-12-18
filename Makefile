@@ -200,6 +200,7 @@ UPROGS=\
 	_t_pc_chan\
 	_t_pc_sem\
 	_t_rw_lock\
+	_t_thread_safe_file_io\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
