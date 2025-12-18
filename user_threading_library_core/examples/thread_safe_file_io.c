@@ -72,14 +72,58 @@ void *consumer_thread(void *arg) {
 }
 
 void producer_process(void) {
+    // producer does not read, so we can close read end
+    close(fds[0]);
+
     // per process thread table init since threads are 1:N
     thread_init();
 
     mutex_init(&write_lock);
+
+    int tids[NPROD];
+
+    // create a thread for each of our producers
+    for (int i = 0; i < NPROD; i++) {
+        tids[i] = thread_create(producer_thread, (void*)(i+1));
+        if (tids[i] < 0) {
+            printf(1, "producer: thread_create failed\n");
+            exit();
+        }
+    }
+
+    for (int i = 0; i < NPROD; i++) {
+        thread_join(tids[i]);
+    }
+
+    close(fds[1]);
+    exit();
 }
 
 void *producer_thread(void* arg) {
-    
+    int pid = (int) arg;
+
+    for (int i = 0; i < PER_PROD; i++) {
+        struct msg m;
+        m.prod_id = pid;
+        m.item = 1;
+
+        mutex_lock(&write_lock);
+
+        // write exactly one msg to the write end
+        if (write_n(fds[1], &m, sizeof(m)) < 0) {
+            printf(1, "producer %d: write failed\n", pid);
+            mutex_unlock(&write_lock);
+            exit();
+        }
+
+        printf(1, "Producer %d: produced item %d\n", pid, i);
+
+        mutex_unlock(&write_lock);
+
+        thread_yield();
+    }
+
+    return 0;
 }
 
 int main(void) {
