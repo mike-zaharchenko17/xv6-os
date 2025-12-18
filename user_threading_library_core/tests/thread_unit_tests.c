@@ -164,6 +164,45 @@ static void thread_create_unique_tid_ok(void) {
   }
 }
 
+/*
+
+thread_slot_reuse_ok
+
+verifies that slot becomes T_UNUSED and can be reused; no leaks given
+that we're freeing the stack
+
+*/
+
+static int find_slot_idx_by_tid(int tid) {
+  for (int i = 0; i < MAX_THREADS; i++) {
+    if (threads[i].tid == tid) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static void thread_slot_reuse_ok(void) {
+  thread_init();
+
+  int t1 = thread_create(join_worker_fast, 0);
+
+  thread_yield();
+
+  int t1_slot = find_slot_idx_by_tid(t1);
+
+  thread_join(t1);
+
+  int t2 = thread_create(join_worker_fast, 0);
+
+  int t2_slot = find_slot_idx_by_tid(t2);
+
+  if (t1_slot != t2_slot) {
+    printf(1, "[FAIL] slot indices did not match (expected [1, 1], got [%d, %d])\n", t1_slot, t2_slot);
+    exit();
+  }
+}
+
 
 /*
 thread_schedule_empty_ok
@@ -202,6 +241,8 @@ int main(void) {
   run_ok("thread_join ok", thread_join_ok);
 
   run_ok("thread_create starts from 1 (not 0) and increments", thread_create_unique_tid_ok);
+
+  run_ok("threads can reuse slots after join", thread_slot_reuse_ok);
 
   run_ok("thread_schedule ok", thread_schedule_empty_ok);
 
