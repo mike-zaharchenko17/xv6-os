@@ -320,6 +320,11 @@ thread_schedule_empty_ok
 
 Tests that thread_yield works correctly even when the calling thread
 is the ONLY thread in the system. It should simply return to itself.
+
+by adding a buffer to modify here, we can surmise that thread_switch is
+doing what it's meant to do as well- restoring into memory the data specific
+to that thread
+
 */
 static void thread_schedule_empty_ok(void) {
   char buf[2];
@@ -338,6 +343,71 @@ static void thread_schedule_empty_ok(void) {
   }
 
   printf(1, "buf: %s\n", buf); // expect "ab?d" unless you set buf[2]
+}
+
+static void* worker_with_buffer_1(void *arg) {
+  char buf[3];
+
+  printf(1, "worker 1: writing a to buffer\n");
+  buf[0] = 'a';
+
+  thread_yield();
+
+  printf(1, "worker 1: writing b to buffer\n");
+  buf[1] = 'b';
+
+  thread_yield();
+
+  printf(1, "worker 1: writing c to buffer\n");
+  buf[2] = 'c';
+
+  thread_exit((void*)buf);
+
+  return 0;
+}
+
+static void* worker_with_buffer_2(void *arg) {
+  char buf[3];
+
+  printf(1, "worker 2: writing d to buffer\n");
+  buf[0] = 'd';
+
+  thread_yield();
+
+  printf(1, "worker 2: writing e to buffer\n");
+  buf[1] = 'e';
+
+  thread_yield();
+
+  printf(1, "worker 2: writing f to buffer\n");
+  buf[2] = 'f';
+
+  thread_exit((void*)buf);
+
+  return 0;
+}
+
+static void thread_schedule_no_memory_disruption(void) {
+  thread_init();
+
+  int t1 = thread_create(worker_with_buffer_1, 0);
+  int t2 = thread_create(worker_with_buffer_2, 0);
+
+  void* t1_retval = thread_join(t1);
+  void* t2_retval = thread_join(t2);
+
+  char* t1_buf = (char*) t1_retval;
+  char* t2_buf = (char*) t2_retval;
+
+  if (t1_buf[0] != 'a' || t1_buf[1] != 'b' || t1_buf[2] != 'c') {
+    printf(1, "[FAIL] unexpected values from t1 (expected [a, b, c])");
+    exit();
+  }
+  
+  if (t2_buf[0] != 'd' || t2_buf[1] != 'e' || t2_buf[2] != 'f') {
+    printf(1, "[FAIL] unexpected values from t2 (expected [d, e, f])");
+    exit();
+  }
 }
 
 /*
@@ -379,6 +449,8 @@ int main(void) {
   run_ok("thread_create returns -1 if limit exceeded", thread_create_limit_ok);
 
   run_ok("thread_schedule ok", thread_schedule_empty_ok);
+
+  run_ok("thread_schedule preserves stack memory correctly", thread_schedule_no_memory_disruption);
 
   run_expect_exit("thread_schedule exits when no threads available", thread_schedule_no_runnable_should_exit);
 
