@@ -342,13 +342,8 @@ Exit xv6 with `Ctrl-a x`.
 
 ### Test catalog
 | Source file (full) | xv6 binary name | Purpose |
-| --- | --- | --- |
-| user_threading_library_core/tests/cond_var_producer_consumer_test.c | t_cond_var_pro | Producer/consumer using condition variables + mutex (bounded buffer). |
-| user_threading_library_core/tests/cond_var_broadcast_test.c | t_cond_var_bro | Broadcast wakes all waiters on a condition variable. |
-| user_threading_library_core/tests/mutex_unit_tests.c | t_mutex_unit_t | Basic mutex correctness (lock/unlock, ownership checks). |
-| user_threading_library_core/tests/semaphore_unit_tests.c | t_semaphore_un | Semaphore wait/post behavior. |
-| user_threading_library_core/tests/thread_unit_tests.c | t_thread_unit_ | Core threading lifecycle (create/join/yield/exit). |
-| user_threading_library_core/tests/channel_tests.c | t_channel_test | Channel basics: send/recv ordering, full-buffer blocking, close wakeups. |
-| user_threading_library_core/tests/pc_sem_test.c | t_pc_sem_test | Producer/consumer (3 producers×10 items, 2 consumers, buffer 5) using semaphores + mutex with sentinels for shutdown. |
-| user_threading_library_core/tests/pc_chan_test.c | t_pc_chan_tes | Same producer/consumer workload using channel_t; last producer closes channel to end consumers. |
-| user_threading_library_core/tests/rw_lock_test.c | t_rw_lock_tes | Writer-priority reader/writer lock; multiple readers/writers contend, no new readers admitted while writers wait. |
+| user_threading_library_core/tests/semaphore_unit_tests.c | t_semaphore_unit_tests | Semaphore wait/post behavior. |
+| user_threading_library_core/tests/thread_unit_tests.c | t_thread_unit_tests| Core threading lifecycle (create/join/yield/exit). |
+| user_threading_library_core/tests/channel_tests.c | t_channel_tests | Channel basics: send/recv ordering, full-buffer blocking, close wakeups. |
+| user_threading_library_core/tests/mutex_unit_tests.c | t_mutex_unit_tests | Core mutex functionality
+| user_threading_library_core/tests/cond_var_unit_tests.c | t_cond_var_unit_tests | Core cond var tests
