@@ -1,109 +1,125 @@
-# Video Walkthrough Script: Advanced Concurrency
+# Video Walkthrough Script: xv6 User-Level Threading Library
 
-**Target Audience:** Beginners who need to understand how Channels and RW Locks work under the hood.
-**Goal:** Explain *why* we built things this way and prove it works.
-
----
-
-## 1. Introduction & Setup (0:00 - 0:30)
-
-**Action:** Open `user_threading_library_core/src/uthreads.c` on the left.
-**Action:** Open a terminal on the right.
-
-**Say:**
-"Hi everyone. Today we're looking at the advanced concurrency primitives we added to our xv6 threading library: **Channels** and **Reader-Writer Locks**. We built these on top of the basic Mutexes and Condition Variables we saw earlier."
+**Target Audience:** Instructors and TAs.
+**Goal:** Demonstrate functionalities AND justify key design decisions (the "Why").
 
 ---
 
-## 2. Deep Dive: Channels (0:30 - 2:30)
+## 1. Introduction (0:00 - 0:45)
 
-**Action:** Scroll to `channel_create` struct definition in `uthreads.c` (around line 460).
+**Action:** Open `user_threading_library_core/src/uthreads.h` on the left.
+**Action:** Open `Final Project.md` on the right.
 
 **Say:**
-"First, **Channels**. Based on Go's channels, these are the safest way for threads to share data. Instead of sharing memory and fighting over locks, threads send messages."
+"Hello! This is [Your Name], presenting the xv6 User-Level Threading Library. This project implements an N:1 threading model.
+**Why N:1?** Because it allows us to handle scheduling entirely in user space without kernel modifications, giving us fast context switches.
 
-**Action:** Highlight the `channel_t` struct (mentally or with mouse).
-**Say:**
-"Under the hood, a channel is just a **Ring Buffer** protected by a **Mutex** and two **Condition Variables**:
-1. `not_full`: Where Senders wait if the buffer is full.
-2. `not_empty`: Where Receivers wait if the buffer is empty."
-
-**Action:** Scroll to `channel_send` (around line 492).
-**Say:**
-"Look at `channel_send`. It's a perfect example of a monitor pattern:
-1. **Lock** the mutex.
-2. **Loop** while the buffer is full, resolving the `not_full` condition.
-3. Once there's space, we write to the buffer.
-4. Finally, we **Signal** `not_empty` to wake up any sleeping receivers."
-
-**Action:** Scroll to `channel_recv` (around line 524).
-**Say:**
-"Receive is the mirror image. We Lock, wait on `not_empty`, read the data, and then signal `not_full` to tell senders that space just opened up."
+I will walk through the four parts, focusing on the *design decisions* that make the library robust."
 
 ---
 
-## 3. The Producer-Consumer Problem (2:30 - 3:30)
+## 2. Part 1: Threading Foundation (0:45 - 2:30)
 
-**Action:** Open `user_threading_library_core/examples/pc_chan.c`.
+**Action:** Open `uthreads.c` -> `thread_create`.
+**Action:** Highlight the stack setup loop.
 
 **Say:**
-"To test this, we built a Producer-Consumer solution. Traditionally, this requires complex semaphore math. With channels, it becomes trivial."
+"First, **Thread Creation**. Creating a thread isn't just allocating memory; it's about fooling the CPU."
 
-**Action:** Highlight the `producer` function loop.
-**Say:**
-"The producer just calls `channel_send`. If the channel is full, it sleeps automatically. No manual semaphore management needed."
+**Design Decision: Stack Spoofing**
+"**Why did we manually push 0s and an address to the stack?**
+Because our context switch routine (`thread_switch`) assumes it's returning from a function call. It *expects* to pop registers (EBP, EBX, ESI, EDI). If creation didn't mimic this layout, the first context switch to a new thread would crash the CPU. We 'spoof' a stack frame so the thread 'returns' safely into `thread_trampoline`."
 
-**Action:** Highlight the `consumer` function loop.
+**Action:** Open `thread_switch.S`.
+
 **Say:**
-"The consumer just calls `channel_recv`. If the channel is empty, it sleeps. If the producer closes the channel, `recv` returns `-1`, and the consumer exits cleanly. This elegant shutdown is a huge advantage over semaphores."
+"This is `thread_switch.S`. It swaps only the stack pointer (`%esp`)."
+
+**Design Decision: Assembly vs C**
+"**Why Assembly?**
+C functions use the stack for their own variables. You cannot atomically swap the stack *underneath* a running C function without corrupting its local state. Only assembly allows us to control exactly which registers are touched during the swap."
+
+**Action:** Run Terminal Command: `t_thread_unit_`
+
+**Say:**
+"Demo: Thread unit tests pass, proving our stack spoofing works."
 
 ---
 
-## 4. Deep Dive: Writer-Priority RW Lock (3:30 - 5:00)
+## 3. Part 2: Synchronization Primitives (2:30 - 4:45)
 
-**Action:** Open `user_threading_library_core/examples/rw_lock.c`.
+### Mutexes & Handoff
+**Action:** Open `uthreads.c` -> `mutex_unlock`.
 
 **Say:**
-"Next, the **Reader-Writer Lock**. This allows multiple threads to read shared data simultaneously, but requires exclusive access for writing."
+"Next, Synchronization. The most critical decision here was in `mutex_unlock`."
 
-**Action:** Scroll to `reader_lock` (around line 24).
-**Say:**
-"The critical feature here is **Writer Priority**. In a standard implementation, a constant stream of Readers could starve a Writer, preventing it from ever running. We fixed that."
+**Design Decision: Direct Handoff (The "Anti-Barging" Lock)**
+"**Why did we implement ownership handoff?**
+Standard mutexes unlock the lock and wake a sleeper. This creates a race (or 'barging') where a *new* thread on another core might steal the lock before the woken thread runs.
+**Our Solution:** In `mutex_unlock`, we do **not** set `locked=0`. We find a waiter, assign it as the new owner, and keep `locked=1`.
+**Why?** This guarantees fairness. The woken thread is *guaranteed* to be the next owner. No spinning, no starvation."
 
-**Action:** Highlight the `while` loop condition in `reader_lock`.
-```c
-while (s->writer_active || s->writers_waiting > 0)
-```
-**Say:**
-"Look at this line. A reader waits if a writer is active, OR if `writers_waiting > 0`. This means if a Writer *wants* to enter, new Readers must wait, clearing the path for the Writer."
+### Channels (Extra Credit)
+**Action:** Open `uthreads.c` -> `channel_send` and `channel_recv`.
 
-**Action:** Scroll to `writer_unlock` (around line 69).
 **Say:**
-"When a writer finishes, it checks `writers_waiting`. It prefers to wake up another Writer (maintaining the writer streak) before waking up all the Readers."
+"I also implemented **Channels**."
+
+**Design Decision: Abstraction Layer**
+"**Why Channels?**
+Using raw Mutexes/CVs is error-prone (forgetting to lock, lost wakeups). Channels encapsulate this complexity.
+**The Design:** Internally, it's a fixed-size ring buffer. `channel_send` automatically blocks on `not_full`, and `channel_recv` blocks on `not_empty`. This ensures safety by design—users *cannot* misuse the synchronization logic."
+
+**Action:** Run Terminal Command: `t_channel_test`
+
+**Say:**
+"Demo: Channel tests pass, showing correct blocking behavior."
 
 ---
 
-## 5. Live Demo (5:00 - End)
+## 4. Part 3: Real-World Problems (4:45 - 6:45)
 
-**Action:** Switch to Terminal.
-**Action:** Run `make qemu`.
+### Reader-Writer Lock (Writer Priority)
+**Action:** Open `examples/rw_lock.c` -> `reader_lock`.
 
 **Say:**
-"Let's see it in action."
+"For the Reader-Writer lock, we had to choose a policy."
 
-### Demo 1: Channels
-**Command:** `t_pc_chan`
+**Design Decision: Writer Priority**
+"**Why Writer Priority?**
+In many systems, reads are frequent and writes are rare. If we allowed readers to enter whenever the lock is free of *active* writers, a continuous stream of readers would starve the writer forever.
+**Our Fix:** A reader *must check* `writers_waiting`. If *any* writer is waiting, the reader blocks. This prioritizes the 'starving' class (writers) over the 'abundant' class (readers)."
+
+**Action:** Run Terminal Command: `t_rw_lock`
+
 **Say:**
-"Running the Producer-Consumer channel test..."
-*(Point to output)*
-"See how Producers (P) and Consumers (C) interleave perfectly. P fills the buffer, then C drains it. Finally, 'PASS' confirms the clean shutdown."
+"output shows batches of reads stopping specifically to let a writer in."
 
-### Demo 2: RW Lock
-**Command:** `t_rw_lock`
+---
+
+## 5. Part 4: Thread-Safe File I/O (6:45 - End)
+
+**Action:** Open `examples/thread_safe_file_io.c`.
+
 **Say:**
-"Now the Reader-Writer lock..."
-*(Point to output)*
-"Watch closely. You'll see batches of Readers running together. But once a Writer requests the lock, you won't see new Readers starting until that Writer has finished. That proves our Writer Priority works."
+"Finally, Thread-Safe I/O. This was the hardest challenge."
 
-**Conclusion:**
-"And that's how we implemented robust concurrency primitives in xv6. Thanks for listening!"
+**Design Decision: Multi-Process Architecture**
+"**Why Multi-Process?**
+We are in a User-Level Threading library. The OS kernel sees us as **one single process**. If one thread calls `read()`, the **kernel** puts the entire process to sleep. All threads stop.
+**The Solution:** We *must* use multiple processes to get OS-level concurrency.
+We fork a 'Producer Process' and a 'Consumer Process'.
+**Why?** Now, if the Consumer blocks on `read()`, the OS scheduler can still run the Producer Process. This simulates async I/O without kernel support."
+
+**Action:** Run Terminal Command: `t_thread_safe_`
+
+**Say:**
+"Demo: The Producer generates data even while the Consumer waits, proving we broke the single-process blocking limitation."
+
+---
+
+## 6. Closing
+
+**Say:**
+"To summarize: We didn't just write code that compiles. We made specific architectural choices—Stack Spoofing for context safety, Mutex Handoff for fairness, Writer Priority for liveness, and Multi-Processing for non-blocking I/O. Thank you."
