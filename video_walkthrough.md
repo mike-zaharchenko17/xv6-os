@@ -1,68 +1,109 @@
-# Video Walkthrough Guide: Channels & Advanced Concurrency
+# Video Walkthrough Script: Advanced Concurrency
 
-## Goals
-- Explain how higher-level constructs (channels, RW lock) are built atop mutex/cond/sem.
-- Show blocking/wakeup behavior live via the provided tests.
-- Keep the audience oriented with “what is blocked, what wakes it” at every step.
+**Target Audience:** Beginners who need to understand how Channels and RW Locks work under the hood.
+**Goal:** Explain *why* we built things this way and prove it works.
 
-## Setup for the demo
-- From repo root: `make fs.img` then `make qemu-nox` (or `make qemu`).
-- Inside xv6, binaries are truncated to 14 chars. Use:
-  - Channels unit tests: `t_channel_test`
-  - Producer/consumer (mutex+sem baseline): `t_producer_con`
-  - Producer/consumer (sem/poison-pill): `t_pc_sem`
-  - Producer/consumer (channel-based): `t_pc_chan`
-  - Writer-priority RW lock: `t_rw_lock`
-- Each test prints a `PASS` line on success; use `Ctrl-a x` to quit QEMU.
-- If you edit code/tests, rerun `make fs.img` before launching QEMU.
+---
 
-## Pre-demo checklist
-- Open side-by-side: `uthreads.c` (channel impl), `channel_tests.c`, `pc_sem.c`, `pc_chan.c`, `rw_lock.c`.
-- Remind yourself: cooperative threads only switch on yield/wait; cond_wait releases lock atomically.
-- Decide which tests to run live (minimal: `t_channel_test`, `t_rw_lock`; optional: `t_pc_sem`, `t_pc_chan`).
+## 1. Introduction & Setup (0:00 - 0:30)
 
-## Suggested narrative flow
-1) Remind audience of cooperative user-level threads: no preemption, so blocking primitives park threads explicitly.
-2) Show how primitives from Part 2 (mutex/cond/sem) get composed into higher-level patterns (channels, PC workflows, RW lock).
-3) Run the matching test after explaining each code path.
+**Action:** Open `user_threading_library_core/src/uthreads.c` on the left.
+**Action:** Open a terminal on the right.
 
-## Section: Channels (Go-style)
-- Code: `user_threading_library_core/src/uthreads.c` (`channel_create/send/recv/close`).
-  - `channel_create`: ring buffer allocation + init of `lock`, `not_empty`, `not_full`, and indices (`head/tail/count/closed`).
-  - `channel_send`: lock, while `count==capacity` wait on `not_full` (cond_wait releases lock); bail out if `closed`; enqueue at `tail`, `cond_signal(not_empty)`.
-  - `channel_recv`: lock, while `count==0` and not `closed` wait on `not_empty`; if closed+empty return `-1`; dequeue at `head`, `cond_signal(not_full)`.
-  - `channel_close`: set `closed=1`, broadcast both cond vars to wake all blocked senders/receivers.
-- Tests: `user_threading_library_core/tests/channel_tests.c`.
-  - Test 1 (`test_basic_send_recv`): start receiver that parks on empty; sender delivers `42`; join.
-  - Test 2 (`test_block_on_full_then_recv`): cap-1 channel; pre-fill; launch sender that must block; `thread_yield` lets it sleep; recv frees space → sender completes → second recv gets sender payload.
-  - Test 3 (`test_close_behavior`): waiter blocks on empty; `channel_close` wakes with `-1`; later sends/recvs after close fail.
-- Live demo script:
-  - Run `t_channel_test`.
-  - Call out when sender blocks (after first send) and when receiver unblocks.
-  - Highlight PASS line and the sequence showing unblock after `channel_close`.
+**Say:**
+"Hi everyone. Today we're looking at the advanced concurrency primitives we added to our xv6 threading library: **Channels** and **Reader-Writer Locks**. We built these on top of the basic Mutexes and Condition Variables we saw earlier."
 
-## Section: Advanced Concurrency Problems
-- Baseline producer/consumer with semaphores: `user_threading_library_core/examples/producer_consumer_problem.c`.
-  - Mechanics: `empty` and `full` semaphores bound a size-5 buffer; mutex guards head/tail; poison pills (-1) stop consumers.
-  - Talk track: “Producer waits on empty → lock → enqueue → unlock → post full. Consumer waits on full → lock → dequeue → unlock → post empty. Poison pill ends consumers.”
-  - Demo (optional): `t_producer_con` to show semaphore gating and poison-pill exit.
-- Producer/consumer with semaphores + sentinel: `user_threading_library_core/examples/pc_sem.c`.
-  - Mechanics: `empty_slots/full_slots` enforce capacity; mutex guards buffer. Last producer injects `SENTINEL` per consumer. Consumers requeue sentinel to ensure every consumer sees it.
-  - Talk track: emphasize why re-queueing sentinel prevents only-one-consumer exit.
-  - Demo: run `t_pc_sem`; point to logs where consumers announce sentinel exit.
-- Producer/consumer using channels: `user_threading_library_core/examples/pc_chan.c`.
-  - Mechanics: channel replaces sem/mutex bookkeeping; `done_lock` only tracks how many producers finished; final producer calls `channel_close`.
-  - Talk track: contrast simplicity vs semaphore version; `channel_recv` returns `<0` to signal drain+close.
-  - Demo: run `t_pc_chan`; highlight consumer exit after close.
-- Writer-priority reader/writer lock: `user_threading_library_core/examples/rw_lock.c`.
-  - State: `readers_active`, `writers_waiting`, `writer_active` under one mutex with `readers_ok`/`writers_ok` cond vars.
-  - `reader_lock`: blocks if writer active **or waiting** → enforces writer priority.
-  - `writer_lock`: increments `writers_waiting`, waits for zero readers/writers, then sets `writer_active`.
-  - `writer_unlock`: signals a waiting writer first; if none, broadcasts to all readers.
-  - Demo: run `t_rw_lock`; call out when readers defer because `writers_waiting > 0` and when writers wake readers afterward.
+---
 
-## How to present the tests
-- Before each run, restate the sync story: which condition blocks, who signals.
-- Run the binary, let output scroll; verbally mark when threads block/unblock.
-- After output stops, point at the PASS line and one or two key ordering lines that prove the policy (e.g., sender blocked until recv frees space; writer runs before queued readers).
-- If time is short, run `t_channel_test` and `t_rw_lock` as the minimum; add `t_pc_sem` vs `t_pc_chan` if you want to contrast semaphore vs channel shutdown behavior.***
+## 2. Deep Dive: Channels (0:30 - 2:30)
+
+**Action:** Scroll to `channel_create` struct definition in `uthreads.c` (around line 460).
+
+**Say:**
+"First, **Channels**. Based on Go's channels, these are the safest way for threads to share data. Instead of sharing memory and fighting over locks, threads send messages."
+
+**Action:** Highlight the `channel_t` struct (mentally or with mouse).
+**Say:**
+"Under the hood, a channel is just a **Ring Buffer** protected by a **Mutex** and two **Condition Variables**:
+1. `not_full`: Where Senders wait if the buffer is full.
+2. `not_empty`: Where Receivers wait if the buffer is empty."
+
+**Action:** Scroll to `channel_send` (around line 492).
+**Say:**
+"Look at `channel_send`. It's a perfect example of a monitor pattern:
+1. **Lock** the mutex.
+2. **Loop** while the buffer is full, resolving the `not_full` condition.
+3. Once there's space, we write to the buffer.
+4. Finally, we **Signal** `not_empty` to wake up any sleeping receivers."
+
+**Action:** Scroll to `channel_recv` (around line 524).
+**Say:**
+"Receive is the mirror image. We Lock, wait on `not_empty`, read the data, and then signal `not_full` to tell senders that space just opened up."
+
+---
+
+## 3. The Producer-Consumer Problem (2:30 - 3:30)
+
+**Action:** Open `user_threading_library_core/examples/pc_chan.c`.
+
+**Say:**
+"To test this, we built a Producer-Consumer solution. Traditionally, this requires complex semaphore math. With channels, it becomes trivial."
+
+**Action:** Highlight the `producer` function loop.
+**Say:**
+"The producer just calls `channel_send`. If the channel is full, it sleeps automatically. No manual semaphore management needed."
+
+**Action:** Highlight the `consumer` function loop.
+**Say:**
+"The consumer just calls `channel_recv`. If the channel is empty, it sleeps. If the producer closes the channel, `recv` returns `-1`, and the consumer exits cleanly. This elegant shutdown is a huge advantage over semaphores."
+
+---
+
+## 4. Deep Dive: Writer-Priority RW Lock (3:30 - 5:00)
+
+**Action:** Open `user_threading_library_core/examples/rw_lock.c`.
+
+**Say:**
+"Next, the **Reader-Writer Lock**. This allows multiple threads to read shared data simultaneously, but requires exclusive access for writing."
+
+**Action:** Scroll to `reader_lock` (around line 24).
+**Say:**
+"The critical feature here is **Writer Priority**. In a standard implementation, a constant stream of Readers could starve a Writer, preventing it from ever running. We fixed that."
+
+**Action:** Highlight the `while` loop condition in `reader_lock`.
+```c
+while (s->writer_active || s->writers_waiting > 0)
+```
+**Say:**
+"Look at this line. A reader waits if a writer is active, OR if `writers_waiting > 0`. This means if a Writer *wants* to enter, new Readers must wait, clearing the path for the Writer."
+
+**Action:** Scroll to `writer_unlock` (around line 69).
+**Say:**
+"When a writer finishes, it checks `writers_waiting`. It prefers to wake up another Writer (maintaining the writer streak) before waking up all the Readers."
+
+---
+
+## 5. Live Demo (5:00 - End)
+
+**Action:** Switch to Terminal.
+**Action:** Run `make qemu`.
+
+**Say:**
+"Let's see it in action."
+
+### Demo 1: Channels
+**Command:** `t_pc_chan`
+**Say:**
+"Running the Producer-Consumer channel test..."
+*(Point to output)*
+"See how Producers (P) and Consumers (C) interleave perfectly. P fills the buffer, then C drains it. Finally, 'PASS' confirms the clean shutdown."
+
+### Demo 2: RW Lock
+**Command:** `t_rw_lock`
+**Say:**
+"Now the Reader-Writer lock..."
+*(Point to output)*
+"Watch closely. You'll see batches of Readers running together. But once a Writer requests the lock, you won't see new Readers starting until that Writer has finished. That proves our Writer Priority works."
+
+**Conclusion:**
+"And that's how we implemented robust concurrency primitives in xv6. Thanks for listening!"
