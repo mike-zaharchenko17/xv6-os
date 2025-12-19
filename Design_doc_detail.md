@@ -347,3 +347,11 @@ Exit xv6 with `Ctrl-a x`.
 | user_threading_library_core/tests/channel_tests.c | t_channel_tests | Channel basics: send/recv ordering, full-buffer blocking, close wakeups. |
 | user_threading_library_core/tests/mutex_unit_tests.c | t_mutex_unit_tests | Core mutex functionality
 | user_threading_library_core/tests/cond_var_unit_tests.c | t_cond_var_unit_tests | Core cond var tests
+
+### Example catalog
+| Source file (full) | xv6 binary name | Purpose |
+| user_threading_library_core/examples/pc_chan.c | t_pc_chan | P/C with channels demo |
+| user_threading_library_core/examples/pc_sem.c | t_pc_chan | P/C with semaphore demo |
+| user_threading_library_core/examples/producer_consumer_problem.c | t_producer_consumer_problem | P/C with semaphore alternate demo |
+| user_threading_library_core/examples/rw_lock.c | t_rw_lock | Writer Priority lock demo |
+| user_threading_library_core/examples/thread_safe_file_io.c | t_thread_safe_file_io | File I/O with two processes demo |
