@@ -16,25 +16,7 @@
    ```
    (Use `make qemu` if you prefer the graphical console.)
 
-### Running tests inside xv6
-At the xv6 shell prompt (`$`), run each test by its truncated name (shown in the table). Example:
-```
-$ t_channel_test
-```
-Exit xv6 with `Ctrl-a x`.
 
-### Test catalog
-| Source file (full) | xv6 binary name | Purpose |
-| --- | --- | --- |
-| user_threading_library_core/tests/cond_var_producer_consumer_test.c | t_cond_var_pro | Producer/consumer using condition variables + mutex (bounded buffer). |
-| user_threading_library_core/tests/cond_var_broadcast_test.c | t_cond_var_bro | Broadcast wakes all waiters on a condition variable. |
-| user_threading_library_core/tests/mutex_unit_tests.c | t_mutex_unit_t | Basic mutex correctness (lock/unlock, ownership checks). |
-| user_threading_library_core/tests/semaphore_unit_tests.c | t_semaphore_un | Semaphore wait/post behavior. |
-| user_threading_library_core/tests/thread_unit_tests.c | t_thread_unit_ | Core threading lifecycle (create/join/yield/exit). |
-| user_threading_library_core/tests/channel_tests.c | t_channel_test | Channel basics: send/recv ordering, full-buffer blocking, close wakeups. |
-| user_threading_library_core/tests/pc_sem_test.c | t_pc_sem_test | Producer/consumer (3 producers×10 items, 2 consumers, buffer 5) using semaphores + mutex with sentinels for shutdown. |
-| user_threading_library_core/tests/pc_chan_test.c | t_pc_chan_tes | Same producer/consumer workload using channel_t; last producer closes channel to end consumers. |
-| user_threading_library_core/tests/rw_lock_test.c | t_rw_lock_tes | Writer-priority reader/writer lock; multiple readers/writers contend, no new readers admitted while writers wait. |
 
 ### Notes
 - All user tests are statically linked and copied into `fs.img` by `make fs.img`; no extra compile steps are needed beyond `make fs.img`.
@@ -79,7 +61,7 @@ struct thread {
 
 ### 2.2 Stack Spoofing (Thread Creation)
 
-The most "magical" part of `thread_create` is setting up the stack for a new thread. Since this thread has never run before, it has no saved context. We must **fake** a context so that `thread_switch` can "return" into it later.
+The most "critical" part of `thread_create` is setting up the stack for a new thread. Since this thread has never run before, it has no saved context. We must **fake** a context so that `thread_switch` can "return" into it later.
 
 **Our Implementation Logic (`thread_create` in `uthreads.c`):**
 
@@ -229,20 +211,42 @@ void cond_wait(cond_t *c, mutex_t *m) {
 
 ### 3.4 Channels (The "Go" Style)
 
-We implemented `channel_t` as a ring buffer (circular queue) protected by a mutex and two CVs (`not_empty`, `not_full`).
+We implemented `channel_t` to facilitate safe inter-thread communication using a bounded buffer model. This approach decouples data production from consumption and handles synchronization internally, reducing the complexity for the end-user.
 
-**Logic (`channel_send`):**
-```c
-mutex_lock(&ch->lock);
-while (ch->count == ch->capacity) {
-    cond_wait(&ch->not_full, &ch->lock); // Block if full
-}
-ch->buf[ch->tail] = data;
-ch->tail = (ch->tail + 1) % ch->capacity; // Wrap around
-ch->count++;
-cond_signal(&ch->not_empty); // Wake receiver
-mutex_unlock(&ch->lock);
-```
+#### Core Design Architecture
+The channel is implemented as a **fixed-size circular buffer**. This structure was chosen to provide O(1) enqueue and dequeue operations while maintaining a strictly bounded memory footprint.
+
+To ensure thread safety and correct blocking behavior, we employed the following synchronization primitives:
+1.  **Mutex (`lock`)**: Guarantees mutual exclusion for all internal state modifications (buffer access, index updates).
+2.  **`not_full` Condition Variable**: Queues sender threads when the buffer reaches capacity.
+3.  **`not_empty` Condition Variable**: Queues receiver threads when the buffer is empty.
+
+#### Sending Logic (`channel_send`)
+
+The `channel_send` operation is designed to block the caller if the channel cannot accept new data.
+
+1.  **State Protection**: We acquire the mutex immediately to ensure atomic inspection of the `count` and `capacity`.
+2.  **Flow Control (Blocking)**:
+    We check `count == capacity`. If true, the thread must wait. We use `cond_wait` on the `not_full` condition variable, which atomically releases the lock and suspends the thread. This atomicity is critical; it prevents a "missed wakeup" race condition where a receiver might signal `not_full` before the sender actually goes to sleep.
+    Upon waking, we re-evaluate the full condition in a `while` loop to handle spurious wakeups or intervening senders.
+3.  **Data Atomic Commit**:
+    Once space is guaranteed, we write the data to the buffer at the `tail` index and update the state (`tail` increments modulo capacity, `count` increments) within the same critical section.
+4.  **Wakeup Signaling**:
+    After a successful write, we signal `not_empty`. We confirm `count > 0`, implying a receiver might be blocked waiting for data.
+5.  **Lock Release**: The mutex is released only after all state updates and signals are complete.
+
+#### Receiving Logic (`channel_recv`)
+
+The receive logic mirrors the send logic to ensure symmetry and correctness.
+
+1.  **State Protection**: The mutex is acquired to read the channel state safely.
+2.  **Flow Control (Blocking)**:
+    We check `count == 0`. If the buffer is empty, the thread waits on the `not_empty` condition variable. This releases the resource (the lock) to allow senders to populate the buffer.
+3.  **Data Retrieval**:
+    We read from the `head` index, perform the modular increment of `head`, and decrement `count`.
+4.  **Wakeup Signaling**:
+    Since we have consumed an item, we signal `not_full` to wake any potentially blocked senders.
+5.  **Lock Release**: The mutex is released, returning control to the scheduler.
 
 **Verification (`channel_tests.c`):**
 *   **`test_block_on_full_then_recv`**: Created a channel of size 1.
@@ -254,23 +258,38 @@ mutex_unlock(&ch->lock);
 
 ### 4.1 Reader-Writer Lock (Writer Priority)
 
-The standard problem allows readers to starve writers. We implemented **Writer Priority**.
+The standard Reader-Writer lock allows concurrent read access but exclusive write access. A naive implementation often prioritizes readers (allowing them to enter as long as no writer *holds* the lock). We identified that this leads to **Writer Starvation** under high contention.
 
-**The Logic:**
-A reader is allowed to enter IF AND ONLY IF:
-1.  No writer is writing.
-2.  No writer is **waiting**.
+To resolve this, we implemented **Writer Priority** logic.
 
-```c
-// reader_lock() from rw_lock.c
-mutex_lock(&s->lock);
-// The 's->writers_waiting > 0' check enforces priority
-while (s->writer_active || s->writers_waiting > 0) {
-    cond_wait(&s->readers_ok, &s->lock);
-}
-s->readers_active++;
-mutex_unlock(&s->lock);
-```
+#### Writer Priority Design
+Our design enforces a strict policy: **New readers are blocked if a writer is either active OR waiting.** This ensures that once a writer declares intent to acquire the lock, it will be the next (or near-next) to run, regardless of incoming readers.
+
+We extended the synchronization state to include `writers_waiting`.
+
+#### Implementation Logic
+
+**1. The Writer's Path (`writer_lock`)**
+The purpose of the writer lock is to gain exclusive access efficiently.
+*   **Registration**: We immediately increment `s->writers_waiting` upon entry. This is the critical step for priority; it signals to all incoming readers that a writer is pending.
+*   **Wait Condition**: The writer waits strictly until `writer_active` is false AND `readers_active` is 0.
+*   **Acquisition**: Once the condition is met, we decrement `writers_waiting` and set `writer_active = 1`.
+
+**2. The Reader's Path (`reader_lock`)**
+The reader lock is designed to yield to writers.
+*   **Admission Test**:
+    ```c
+    while (s->writer_active || s->writers_waiting > 0) {
+        cond_wait(&s->readers_ok, &s->lock);
+    }
+    ```
+    We check not only if a writer is *writing* (`writer_active`) but also if one is *queued* (`writers_waiting > 0`). If either is true, the reader waits. This logic prevents the "stream of readers" problem that causes writer starvation.
+
+**3. Ownership Handoff (`writer_unlock`)**
+Efficiency in waking threads is determined by our priority policy.
+*   When a writer releases the lock, we check `writers_waiting`.
+*   **Priority Wakeup**: If `writers_waiting > 0`, we signal `writers_ok` to wake exactly one writer.
+*   **Secondary Wakeup**: Only if no writers are waiting do we use `cond_broadcast(&s->readers_ok)` to wake all readers. This effectively batches reader execution only during periods of no write contention.
 
 **Example Output (`rw_lock.c`):**
 ```
@@ -312,3 +331,24 @@ if (pid == 0) {
 ## 6. Conclusion
 
 We successfully implemented a fully functional threading library in xv6. The library is robust, strictly following the N:1 model with cooperative scheduling. We demonstrated its correctness through rigorous unit testing (covering mutex counting, semaphore FIFO ordering, and channel blocking) and solved complex synchronization problems like Writer-Priority RW locks. The code is modular, separating the interface (`uthreads.h`) from implementation (`uthreads.c`), ensuring clean abstraction.
+
+
+### Running tests inside xv6
+At the xv6 shell prompt (`$`), run each test by its truncated name (shown in the table). Example:
+```
+$ t_channel_test
+```
+Exit xv6 with `Ctrl-a x`.
+
+### Test catalog
+| Source file (full) | xv6 binary name | Purpose |
+| --- | --- | --- |
+| user_threading_library_core/tests/cond_var_producer_consumer_test.c | t_cond_var_pro | Producer/consumer using condition variables + mutex (bounded buffer). |
+| user_threading_library_core/tests/cond_var_broadcast_test.c | t_cond_var_bro | Broadcast wakes all waiters on a condition variable. |
+| user_threading_library_core/tests/mutex_unit_tests.c | t_mutex_unit_t | Basic mutex correctness (lock/unlock, ownership checks). |
+| user_threading_library_core/tests/semaphore_unit_tests.c | t_semaphore_un | Semaphore wait/post behavior. |
+| user_threading_library_core/tests/thread_unit_tests.c | t_thread_unit_ | Core threading lifecycle (create/join/yield/exit). |
+| user_threading_library_core/tests/channel_tests.c | t_channel_test | Channel basics: send/recv ordering, full-buffer blocking, close wakeups. |
+| user_threading_library_core/tests/pc_sem_test.c | t_pc_sem_test | Producer/consumer (3 producers×10 items, 2 consumers, buffer 5) using semaphores + mutex with sentinels for shutdown. |
+| user_threading_library_core/tests/pc_chan_test.c | t_pc_chan_tes | Same producer/consumer workload using channel_t; last producer closes channel to end consumers. |
+| user_threading_library_core/tests/rw_lock_test.c | t_rw_lock_tes | Writer-priority reader/writer lock; multiple readers/writers contend, no new readers admitted while writers wait. |
