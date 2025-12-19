@@ -4,6 +4,43 @@
 **Course:** CS-GY 6233 Operating Systems (Fall 2025)
 
 ---
+## 0. Prelogue
+### Build (compiles everything)
+1. From the repo root, build the filesystem image (this also compiles all user tests):
+   ```sh
+   make fs.img
+   ```
+2. Launch xv6 in a terminal:
+   ```sh
+   make qemu-nox
+   ```
+   (Use `make qemu` if you prefer the graphical console.)
+
+### Running tests inside xv6
+At the xv6 shell prompt (`$`), run each test by its truncated name (shown in the table). Example:
+```
+$ t_channel_test
+```
+Exit xv6 with `Ctrl-a x`.
+
+### Test catalog
+| Source file (full) | xv6 binary name | Purpose |
+| --- | --- | --- |
+| user_threading_library_core/tests/cond_var_producer_consumer_test.c | t_cond_var_pro | Producer/consumer using condition variables + mutex (bounded buffer). |
+| user_threading_library_core/tests/cond_var_broadcast_test.c | t_cond_var_bro | Broadcast wakes all waiters on a condition variable. |
+| user_threading_library_core/tests/mutex_unit_tests.c | t_mutex_unit_t | Basic mutex correctness (lock/unlock, ownership checks). |
+| user_threading_library_core/tests/semaphore_unit_tests.c | t_semaphore_un | Semaphore wait/post behavior. |
+| user_threading_library_core/tests/thread_unit_tests.c | t_thread_unit_ | Core threading lifecycle (create/join/yield/exit). |
+| user_threading_library_core/tests/channel_tests.c | t_channel_test | Channel basics: send/recv ordering, full-buffer blocking, close wakeups. |
+| user_threading_library_core/tests/pc_sem_test.c | t_pc_sem_test | Producer/consumer (3 producers×10 items, 2 consumers, buffer 5) using semaphores + mutex with sentinels for shutdown. |
+| user_threading_library_core/tests/pc_chan_test.c | t_pc_chan_tes | Same producer/consumer workload using channel_t; last producer closes channel to end consumers. |
+| user_threading_library_core/tests/rw_lock_test.c | t_rw_lock_tes | Writer-priority reader/writer lock; multiple readers/writers contend, no new readers admitted while writers wait. |
+
+### Notes
+- All user tests are statically linked and copied into `fs.img` by `make fs.img`; no extra compile steps are needed beyond `make fs.img`.
+- If you add or modify tests, rerun `make fs.img` before booting xv6 to ensure the new binaries are on the disk image.
+- Use `ls` inside xv6 to see the truncated names if you forget them. ***
+
 
 ## 1. Introduction
 
@@ -12,6 +49,7 @@ This document provides an in-depth look at the implementation of our user-level 
 ## 2. Part 1: The Threading Core
 
 The foundation of our library is the ability to multiplex multiple execution contexts onto a single CPU.
+
 
 ### 2.1 The Thread Control Block (`struct thread`)
 
@@ -54,8 +92,9 @@ The most "magical" part of `thread_create` is setting up the stack for a new thr
   // When thread_switch performs 'ret', the CPU will pop this address and jump there.
   *--sp = (uint)thread_trampoline;
 
-  // 3. Push fake registers (EDI, ESI, EBX, EBP)
-  // thread_switch expects to pop these 4 values before returning.
+  // 3. Push fake registers (EBP, EBX, ESI, EDI) in the exact pop order
+  // used by thread_switch; this keeps the spoofed frame consistent with the
+  // assembly routine.
   *--sp = 0; // ebp
   *--sp = 0; // ebx
   *--sp = 0; // esi
@@ -264,6 +303,11 @@ if (pid == 0) {
 ```
 
 ---
+
+## Appendix: Test Binaries & Names (current layout)
+- **Unit tests (under `user_threading_library_core/tests/`)**: `t_thread_unit_`, `t_mutex_unit_t`, `t_semaphore_un`, `t_channel_test`, `t_cond_var_uni` (14-char truncation applied by xv6).
+- **Examples/demos (under `user_threading_library_core/examples/`)**: `t_pc_sem`, `t_pc_chan`, `t_producer_con` (producer_consumer_problem), `t_rw_lock`, `t_thread_safe_` (thread_safe_file_io).
+- UPROGS in `Makefile` now point directly at these sources so `make fs.img` copies the up-to-date binaries onto the disk image.
 
 ## 6. Conclusion
 
