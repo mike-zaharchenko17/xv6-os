@@ -27,6 +27,7 @@ static void reader_lock(rw_state_t *s) {
   // Writers have priority. If a writer is writing (writer_active)
   // OR if any writer is waiting (writers_waiting > 0), this reader must wait.
   while (s->writer_active || s->writers_waiting > 0) {
+    // Sleep until a writer signals that readers may proceed
     cond_wait(&s->readers_ok, &s->lock); // Wait on readers_ok condition
   }
   s->readers_active++;    // Registered as an active reader
@@ -39,6 +40,7 @@ static void reader_unlock(rw_state_t *s) {
 
   // If this was the last reader, and there are writers waiting, wake one up.
   if (s->readers_active == 0 && s->writers_waiting > 0) {
+    // Readers are gone; hand over to a writer
     cond_signal(&s->writers_ok); // Signal one writer to proceed
   }
   // Note: If no writers are waiting, we don't need to do anything special
@@ -55,6 +57,7 @@ static void writer_lock(rw_state_t *s) {
 
   // Wait until there are no active readers AND no active writers.
   while (s->writer_active || s->readers_active > 0) {
+    // Sleep; woken either by writer_unlock or reader_unlock
     cond_wait(&s->writers_ok, &s->lock); // Wait on writers_ok condition
   }
   s->writers_waiting--;   // No longer waiting, now active
@@ -69,6 +72,7 @@ static void writer_unlock(rw_state_t *s) {
   // Priority policy: if other writers are waiting, wake them first (Writer
   // Priority).
   if (s->writers_waiting > 0) {
+    // Let the next writer run; readers stay blocked
     cond_signal(&s->writers_ok); // Wake one wanting writer
   } else {
     // If no writers waiting, wake ALL waiting readers.

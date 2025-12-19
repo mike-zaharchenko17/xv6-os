@@ -24,19 +24,19 @@ static void *producer(void *arg) {
 
     for (int i = 0; i < 10; i++) {
         // check should proceed
-        sem_wait(&empty);
+        sem_wait(&empty);          // Block if there are no empty slots
 
         // when proceed
-        mutex_lock(&m);
+        mutex_lock(&m);            // Enter critical section
 
         buf[(tail++ % 5)] = i; // mod tail by 5 (wraparound) and then increment it
         total_produced++;
         printf(1, "Producer %d: produced item %d\n", producer_num, i);
 
-        mutex_unlock(&m);
+        mutex_unlock(&m);          // Leave critical section
 
         // notify full buffer and increment it
-        sem_post(&full);
+        sem_post(&full);           // Wake a waiting consumer (if any)
     }
 
     return 0;
@@ -49,17 +49,17 @@ static void *consumer(void *arg) {
     int consumer_num = (int) arg;
 
     while (consumed != -1) {
-        sem_wait(&full);
+        sem_wait(&full);        // Block while buffer is empty
 
-        mutex_lock(&m);
+        mutex_lock(&m);         // Enter critical section
 
         consumed = buf[(head++ % 5)]; // ditto head
         total_consumed++;
         printf(1, "Consumer %d: consumed item %d\n", consumer_num, consumed);
         
-        mutex_unlock(&m);
+        mutex_unlock(&m);       // Leave critical section
 
-        sem_post(&empty);
+        sem_post(&empty);       // Signal that a slot freed up
     }
 
     return 0;
@@ -85,21 +85,21 @@ int main(void) {
 
     // inject a poison pill per consumer
 
-    sem_wait(&empty);
+    sem_wait(&empty); // Wait for a free slot
 
-    mutex_lock(&m);
+    mutex_lock(&m);   // Insert first sentinel
     buf[(tail++ % 5)] = -1;
     mutex_unlock(&m);
 
-    sem_post(&full);
+    sem_post(&full);  // Wake a consumer with the sentinel
     
-    sem_wait(&empty);
+    sem_wait(&empty); // Repeat for second consumer
 
-    mutex_lock(&m);    
+    mutex_lock(&m);   // Insert second sentinel
     buf[(tail++ % 5)] = -1;
     mutex_unlock(&m);
 
-    sem_post(&full);
+    sem_post(&full);  // Wake remaining consumer
 
     thread_join(c1);
     thread_join(c2);

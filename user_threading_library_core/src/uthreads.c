@@ -461,23 +461,27 @@ channel_t *channel_create(int capacity) {
     return 0;
   }
 
+  // Allocate the channel object first
   channel_t *ch = (channel_t *)malloc(sizeof(channel_t));
   if (!ch) {
     return 0;
   }
 
+  // Allocate backing store for the ring buffer
   ch->buf = (void **)malloc(sizeof(void *) * capacity);
   if (!ch->buf) {
     free(ch);
     return 0;
   }
 
+  // Initialize ring buffer metadata
   ch->capacity = capacity;
   ch->count = 0;
   ch->head = 0;
   ch->tail = 0;
   ch->closed = 0;
 
+  // Initialize synchronization primitives guarding the channel
   mutex_init(&ch->lock);
   cond_init(&ch->not_empty);
   cond_init(&ch->not_full);
@@ -492,11 +496,13 @@ int channel_send(channel_t *ch, void *data) {
 
   mutex_lock(&ch->lock);
 
+  // Back-pressure: wait while the buffer is at capacity
   while (!ch->closed && ch->count == ch->capacity) {
-    // Channel full, wait on not_full condition
+    // cond_wait atomically releases the lock and sleeps
     cond_wait(&ch->not_full, &ch->lock);
   }
 
+  // After waking, fail fast if a close was observed
   if (ch->closed) {
     mutex_unlock(&ch->lock);
     return -1;
@@ -522,11 +528,13 @@ int channel_recv(channel_t *ch, void **data) {
 
   mutex_lock(&ch->lock);
 
+  // Block while empty; a close will break us out
   while (ch->count == 0 && !ch->closed) {
     // Channel empty, wait on not_empty condition
     cond_wait(&ch->not_empty, &ch->lock);
   }
 
+  // If still empty but closed, report termination to caller
   if (ch->count == 0 && ch->closed) {
     mutex_unlock(&ch->lock);
     return -1;

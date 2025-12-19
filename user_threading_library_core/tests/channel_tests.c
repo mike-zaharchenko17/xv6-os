@@ -25,6 +25,7 @@ static void test_basic_send_recv(void) {
   if (!t1_ch)
     fail("channel_create failed");
 
+  // Start a receiver that will park on channel_recv
   int rtid = thread_create(t1_receiver, 0);
   if (rtid < 0)
     fail("receiver thread create");
@@ -58,6 +59,7 @@ static void test_block_on_full_then_recv(void) {
   if (channel_send(t2_ch, (void *)1) != 0)
     fail("initial send failed");
 
+  // Launch a sender that will have to wait for buffer space
   int stid = thread_create(t2_sender, 0);
   if (stid < 0)
     fail("sender thread create");
@@ -106,7 +108,7 @@ static void test_close_behavior(void) {
   if (rtid < 0)
     fail("waiter thread create");
 
-  thread_yield(); // let waiter block
+  thread_yield(); // let waiter block on empty channel
 
   // Closing the channel should wake up the waiter with an error
   channel_close(t3_ch);
