@@ -217,7 +217,7 @@ int thread_create(void *(*start_routine)(void *), void *arg) {
 
 void *thread_join(int tid) {
   if (tid == current_thread->tid) {
-    printf(1, "invalid target tid; cannot self-join");
+    printf(1, "invalid target tid; cannot self-join\n");
     return 0;
   }
 
@@ -226,18 +226,18 @@ void *thread_join(int tid) {
   // find the thread with the target TID
 
   if (target_thread == 0) {
-    printf(1, "invalid target tid; thread not found");
+    printf(1, "invalid target tid; thread not found\n");
     return 0;
   }
 
   if (target_thread->tstate == T_UNUSED) {
-    printf(1, "invalid target tid; thread is unused");
+    printf(1, "invalid target tid; thread is unused\n");
     return 0;
   }
 
   if (target_thread->joiner_tid != -1 &&
       target_thread->joiner_tid != current_thread->tid) {
-    printf(1, "invalid target tid; thread already has a joiner");
+    printf(1, "invalid target tid; thread already has a joiner\n");
     return 0;
   }
 
